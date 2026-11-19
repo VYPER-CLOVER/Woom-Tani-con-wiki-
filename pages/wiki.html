@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Woomtani - Wiki</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/wiki.css">
+</head>
+<body>
+    <header>
+        <div class="logo-container">
+            <a href="../index.html">
+                <img src="../img/mome.png" alt="Logo Woomtani" class="logo">
+            </a>
+        </div>
+        <h1 id="titulo">Welcome to the DLC of the Ucrania</h1>
+        <nav class="menu_arriba">
+            <a href="../index.html">Inicio</a>
+            <a href="../pages/registro.html">Registro</a>
+        </nav>
+    </header>
+    
+    <main class="wiki-main">
+        <div class="wiki-layout">
+            <!-- Menú lateral izquierdo estilo juarez3 -->
+            <aside class="wiki-sidebar">
+                <div class="filtro-seccion">
+                    <h3>Categorías</h3>
+                    <ul class="lista-filtros">
+                        <li class="filtro-item" data-section="info-general">
+                            <img src="../img/mome.png" alt="Información General" class="filtro-img">
+                            <span>Info General</span>
+                        </li>
+                        <li class="filtro-item" data-section="personajes">
+                            <img src="../img/peron.png" alt="Personajes" class="filtro-img">
+                            <span>Personajes</span>
+                        </li>
+                        <li class="filtro-item" data-section="armas">
+                            <img src="../img/pistol.png" alt="Armas" class="filtro-img">
+                            <span>Armas</span>
+                        </li>
+                        <li class="filtro-item" data-section="enemigos">
+                            <img src="../img/zombi.png" alt="Enemigos" class="filtro-img">
+                            <span>Enemigos</span>
+                        </li>
+                        <li class="filtro-item" data-section="objetos">
+                            <img src="../img/ammo.png" alt="Objetos" class="filtro-img">
+                            <span>Objetos</span>
+                        </li>
+                        <li class="filtro-item" data-section="controles">
+                            <img src="../img/woom.jpeg" alt="Controles" class="filtro-img">
+                            <span>Controles</span>
+                        </li>
+                    </ul>
+                </div>
+            </aside>
+
+            <!-- Contenido central -->
+            <div class="wiki-content">
+                <!-- Información General (por defecto) -->
+                <section id="info-general" class="wiki-section active">
+                    <h3 class="wiki-section-title">Información General</h3>
+                    <div class="info-general-content">
+                        <p><strong>Woomtani</strong> es un shooter en primera persona (FPS) con estilo retro inspirado en los clásicos de los 90. El juego cuenta con un nivel completo lleno de enemigos, secretos y desafíos.</p>
+                        
+                        <p>El juego incluye <strong>5 personajes seleccionables</strong>, cada uno con las mismas estadísticas pero con la posibilidad de elegir tu favorito. Podés jugar con <strong>teclado y mouse</strong>, con <strong>mando de PS3</strong> o desde el <strong>celular</strong> con controles táctiles.</p>
+                        
+                        <p>En cuanto a armas, contás con una <strong>pistola</strong> inicial y una <strong>escopeta</strong> que se encuentra escondida en la sala D. La escopeta es un arma de área con gran daño, ideal para grupos de enemigos.</p>
+                        
+                        <p>El nivel tiene <strong>18 enemigos</strong> entre zombis e imps, además de <strong>2 salas secretas</strong> que contienen ítems especiales. Encontrar el ítem <strong>Fabri</strong> te da <strong>5000 puntos</strong> extra y cambia la música del juego.</p>
+                        
+                        <p>El objetivo es llegar al <strong>interruptor final</strong> en la última sala para completar el nivel. ¡Buena suerte!</p>
+                        
+                        <div class="info-general-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Género:</span>
+                                <span class="stat-value">FPS (First Person Shooter)</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Estilo:</span>
+                                <span class="stat-value">Retro / Doom-like</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Niveles:</span>
+                                <span class="stat-value">1 (con salas secretas)</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Personajes:</span>
+                                <span class="stat-value">5 seleccionables</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Armas:</span>
+                                <span class="stat-value">2 (Pistola, Escopeta)</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Enemigos:</span>
+                                <span class="stat-value">18 en total</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Plataformas:</span>
+                                <span class="stat-value">PC, Móvil, Mando</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Puntaje máx:</span>
+                                <span class="stat-value">5000+ (con secretos)</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Personajes -->
+                <section id="personajes" class="wiki-section">
+                    <h3 class="wiki-section-title">Personajes</h3>
+                    <div class="wiki-grid">
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/peron.png" alt="Perón" class="card-img">
+                            </div>
+                            <h4>Perón</h4>
+                            <p>El personaje principal. Un líder carismático que lucha contra las fuerzas del infierno.</p>
+                            <ul>
+                                <li><strong>Vida:</strong> 100 HP</li>
+                                <li><strong>Velocidad:</strong> 3.2 celdas/seg</li>
+                                <li><strong>Arma inicial:</strong> Pistola</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/peron.png" alt="Personaje 2" class="card-img">
+                            </div>
+                            <h4>Personaje 2</h4>
+                            <p>Personaje desbloqueable con habilidades equilibradas.</p>
+                            <ul>
+                                <li><strong>Vida:</strong> 100 HP</li>
+                                <li><strong>Velocidad:</strong> 3.2 celdas/seg</li>
+                                <li><strong>Arma inicial:</strong> Pistola</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/peron.png" alt="Personaje 3" class="card-img">
+                            </div>
+                            <h4>Personaje 3</h4>
+                            <p>Personaje desbloqueable con habilidades equilibradas.</p>
+                            <ul>
+                                <li><strong>Vida:</strong> 100 HP</li>
+                                <li><strong>Velocidad:</strong> 3.2 celdas/seg</li>
+                                <li><strong>Arma inicial:</strong> Pistola</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/peron.png" alt="Personaje 4" class="card-img">
+                            </div>
+                            <h4>Personaje 4</h4>
+                            <p>Personaje desbloqueable con habilidades equilibradas.</p>
+                            <ul>
+                                <li><strong>Vida:</strong> 100 HP</li>
+                                <li><strong>Velocidad:</strong> 3.2 celdas/seg</li>
+                                <li><strong>Arma inicial:</strong> Pistola</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/peron.png" alt="Personaje 5" class="card-img">
+                            </div>
+                            <h4>Personaje 5</h4>
+                            <p>Personaje desbloqueable con habilidades equilibradas.</p>
+                            <ul>
+                                <li><strong>Vida:</strong> 100 HP</li>
+                                <li><strong>Velocidad:</strong> 3.2 celdas/seg</li>
+                                <li><strong>Arma inicial:</strong> Pistola</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Armas -->
+                <section id="armas" class="wiki-section">
+                    <h3 class="wiki-section-title">Armas</h3>
+                    <div class="wiki-grid">
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/pistol.png" alt="Pistola" class="card-img">
+                            </div>
+                            <h4>Pistola</h4>
+                            <p>Arma inicial del jugador. Disparo rápido con daño moderado.</p>
+                            <ul>
+                                <li><strong>Daño:</strong> 9-17</li>
+                                <li><strong>Coste de munición:</strong> 1 bala</li>
+                                <li><strong>Dispersión:</strong> 0.045 rad</li>
+                                <li><strong>Alcance:</strong> 14 celdas</li>
+                                <li><strong>Tecla:</strong> 1</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/shotgun.png" alt="Escopeta" class="card-img">
+                            </div>
+                            <h4>Escopeta</h4>
+                            <p>Arma poderosa de área. Se encuentra en la sala D.</p>
+                            <ul>
+                                <li><strong>Daño:</strong> 30-48</li>
+                                <li><strong>Coste de munición:</strong> 2 balas</li>
+                                <li><strong>Dispersión:</strong> 0.24 rad</li>
+                                <li><strong>Alcance:</strong> 14 celdas</li>
+                                <li><strong>Tecla:</strong> 2</li>
+                                <li><strong>Bonus al encontrar:</strong> +200 puntos</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Enemigos -->
+                <section id="enemigos" class="wiki-section">
+                    <h3 class="wiki-section-title">Enemigos</h3>
+                    <div class="wiki-grid">
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/zombi.png" alt="Zombi" class="card-img">
+                            </div>
+                            <h4>Zombi</h4>
+                            <p>Enemigo básico cuerpo a cuerpo. Lento pero persistente.</p>
+                            <ul>
+                                <li><strong>Vida:</strong> 30 HP</li>
+                                <li><strong>Velocidad:</strong> 1.3 celdas/seg</li>
+                                <li><strong>Daño:</strong> 8</li>
+                                <li><strong>Rango de visión:</strong> 7 celdas</li>
+                                <li><strong>Rango de ataque:</strong> 1.15 celdas</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/imp.png" alt="Imp" class="card-img">
+                            </div>
+                            <h4>Imp</h4>
+                            <p>Enemigo que ataca a distancia. Más rápido y peligroso que el zombi.</p>
+                            <ul>
+                                <li><strong>Vida:</strong> 55 HP</li>
+                                <li><strong>Velocidad:</strong> 1.6 celdas/seg</li>
+                                <li><strong>Daño:</strong> 14</li>
+                                <li><strong>Rango de visión:</strong> 9 celdas</li>
+                                <li><strong>Rango de ataque:</strong> 5.5 celdas</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Objetos -->
+                <section id="objetos" class="wiki-section">
+                    <h3 class="wiki-section-title">Objetos y Utilidades</h3>
+                    <div class="wiki-grid">
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/ammo.png" alt="Munición" class="card-img">
+                            </div>
+                            <h4>Munición</h4>
+                            <p>Caja de balas para rearmar tu arma.</p>
+                            <ul>
+                                <li><strong>Cantidad:</strong> +15 a +20 balas</li>
+                                <li><strong>Puntos:</strong> +25</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/health.png" alt="Vida" class="card-img">
+                            </div>
+                            <h4>Vida</h4>
+                            <p>Botiquín para recuperar salud.</p>
+                            <ul>
+                                <li><strong>Cantidad:</strong> +25 a +30 HP</li>
+                                <li><strong>Puntos:</strong> +25</li>
+                                <li><strong>Máximo:</strong> 200 HP</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/armor.png" alt="Armadura" class="card-img">
+                            </div>
+                            <h4>Armadura</h4>
+                            <p>Chaleco antibalas que absorbe el 60% del daño.</p>
+                            <ul>
+                                <li><strong>Cantidad:</strong> +30 a +50</li>
+                                <li><strong>Puntos:</strong> +25</li>
+                                <li><strong>Máximo:</strong> 200</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Easter Eggs con contraseña -->
+                    <div class="easter-eggs-section">
+                        <h4 class="easter-eggs-title">Easter Eggs</h4>
+                        <div class="easter-eggs-locked" id="easterEggsLocked">
+                            <p class="easter-eggs-msg">Este contenido está protegido. Ingresá la contraseña para ver los secretos del juego.</p>
+                            <div class="easter-eggs-form">
+                                <input type="password" id="easterEggsPassword" placeholder="Contraseña" class="easter-eggs-input">
+                                <button id="easterEggsBtn" class="easter-eggs-btn">Desbloquear</button>
+                            </div>
+                            <p class="easter-eggs-error" id="easterEggsError">Contraseña incorrecta. Intentá de nuevo.</p>
+                        </div>
+                        <div class="easter-eggs-content" id="easterEggsContent">
+                            <div class="wiki-grid">
+                                <div class="wiki-card">
+                                    <div class="card-img-container">
+                                        <img src="../img/secret_item.png" alt="Ítem Secreto" class="card-img">
+                                    </div>
+                                    <h4>Ítem Secreto</h4>
+                                    <p>Objeto oculto en la sala secreta. Activa la música "Desesperado".</p>
+                                    <ul>
+                                        <li><strong>Puntos:</strong> +25</li>
+                                        <li><strong>Efecto:</strong> Cambia la música a "Desesperado"</li>
+                                        <li><strong>Ubicación:</strong> Sala secreta 1 (pasillo 2, giro hacia el sur)</li>
+                                    </ul>
+                                </div>
+                                <div class="wiki-card">
+                                    <div class="card-img-container">
+                                        <img src="../img/fabri_asset.png" alt="Fabri" class="card-img">
+                                    </div>
+                                    <h4>Fabri</h4>
+                                    <p>Ítem secreto especial. Vale 5000 puntos y activa la música "Cobra".</p>
+                                    <ul>
+                                        <li><strong>Puntos:</strong> +5000</li>
+                                        <li><strong>Efecto:</strong> Cambia la música a "Cobra"</li>
+                                        <li><strong>Ubicación:</strong> Sala secreta 2 (detrás de la pared del botón final)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Controles -->
+                <section id="controles" class="wiki-section">
+                    <h3 class="wiki-section-title">Controles</h3>
+                    <div class="wiki-grid">
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/woom.jpeg" alt="Teclado y Mouse" class="card-img">
+                            </div>
+                            <h4>Teclado y Mouse</h4>
+                            <ul>
+                                <li><strong>Mover:</strong> W A S D o flechas</li>
+                                <li><strong>Mirar:</strong> Mouse o Izquierda/Derecha</li>
+                                <li><strong>Disparar:</strong> Click o Espacio</li>
+                                <li><strong>Cambiar arma:</strong> 1 (Pistola) / 2 (Escopeta)</li>
+                                <li><strong>Interactuar:</strong> E</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/woom.jpeg" alt="Mando PS3" class="card-img">
+                            </div>
+                            <h4>Mando (PS3)</h4>
+                            <ul>
+                                <li><strong>Mover:</strong> Stick izquierdo</li>
+                                <li><strong>Mirar:</strong> Stick derecho</li>
+                                <li><strong>Disparar:</strong> R2</li>
+                                <li><strong>Cambiar arma:</strong> L1 (Pistola) / R1 (Escopeta)</li>
+                                <li><strong>Interactuar:</strong> Cuadrado</li>
+                            </ul>
+                        </div>
+                        <div class="wiki-card">
+                            <div class="card-img-container">
+                                <img src="../img/woom.jpeg" alt="Celular" class="card-img">
+                            </div>
+                            <h4>Celular</h4>
+                            <ul>
+                                <li><strong>Mover:</strong> Joystick virtual</li>
+                                <li><strong>Mirar:</strong> Arrastrar en pantalla</li>
+                                <li><strong>Disparar:</strong> Botón FUEGO</li>
+                                <li><strong>Cambiar arma:</strong> Botones 1 y 2</li>
+                                <li><strong>Interactuar:</strong> Botón E</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+
+        </div>
+    </main>
+
+    <footer>
+        <div class="datos-contacto">
+            <div class="links-legales">
+                <a href="../pages/privacidad.html">Políticas de Privacidad</a>
+                <a href="../pages/terminos.html">Términos y Condiciones</a>
+            </div>
+            <p class="copyright">&copy; 2026 Todos los derechos reservados a Woomtani</p>
+        </div>
+        <nav class="menu_abajo">
+            <a href="../pages/registro.html">Registro</a>
+            <a href="../pages/wiki.html">Wiki</a>
+        </nav>
+    </footer>
+
+    <script>
+        // Al cargar la página, mostrar información general
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ocultar todas las secciones
+            document.querySelectorAll('.wiki-section').forEach(s => s.classList.remove('active'));
+            // Mostrar solo la información general
+            document.getElementById('info-general').classList.add('active');
+        });
+
+        // Menu item selection - estilo juarez3
+        document.querySelectorAll('.filtro-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Quitar clase active de todos los items del menú
+                document.querySelectorAll('.filtro-item').forEach(i => i.classList.remove('active'));
+                // Agregar clase active al item clickeado
+                this.classList.add('active');
+                
+                // Ocultar todas las secciones
+                document.querySelectorAll('.wiki-section').forEach(s => s.classList.remove('active'));
+                
+                // Mostrar la sección correspondiente
+                const sectionId = this.getAttribute('data-section');
+                document.getElementById(sectionId).classList.add('active');
+                
+                // Resetear easter eggs al salir de la sección de objetos
+                if (sectionId !== 'objetos') {
+                    easterEggsLocked.style.display = 'block';
+                    easterEggsContent.classList.remove('unlocked');
+                    easterEggsInput.value = '';
+                    easterEggsError.classList.remove('show');
+                }
+                
+                // Scroll suave al contenido (solo celular, donde el menú queda arriba)
+                if (window.innerWidth <= 768) {
+                    document.querySelector('.wiki-content').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Easter Eggs - Validación de contraseña
+        const easterEggsBtn = document.getElementById('easterEggsBtn');
+        const easterEggsInput = document.getElementById('easterEggsPassword');
+        const easterEggsError = document.getElementById('easterEggsError');
+        const easterEggsLocked = document.getElementById('easterEggsLocked');
+        const easterEggsContent = document.getElementById('easterEggsContent');
+        const correctPassword = 'Iiinstituto';
+
+        easterEggsBtn.addEventListener('click', function() {
+            const enteredPassword = easterEggsInput.value;
+            
+            if (enteredPassword === correctPassword) {
+                easterEggsLocked.style.display = 'none';
+                easterEggsContent.classList.add('unlocked');
+                easterEggsError.classList.remove('show');
+            } else {
+                easterEggsError.classList.add('show');
+                easterEggsInput.value = '';
+                easterEggsInput.focus();
+            }
+        });
+
+        // Permitir Enter para desbloquear
+        easterEggsInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                easterEggsBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>

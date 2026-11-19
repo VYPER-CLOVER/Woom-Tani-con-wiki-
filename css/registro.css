@@ -1,0 +1,141 @@
+/* ============================================================
+   ESTILOS ESPECÍFICOS - Página Registro
+   ============================================================ */
+
+main {
+    background-image: url('../img/woom.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    min-height: calc(100vh - 100px - 60px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2%;
+}
+
+.form-container {
+    background-color: rgba(26, 26, 26, 0.9);
+    padding: 40px;
+    border-radius: 10px;
+    border: 2px solid #8b0000;
+    max-width: 450px;
+    width: 100%;
+}
+
+.form-title {
+    color: #ff3333;
+    font-size: 28px;
+    text-align: center;
+    margin-bottom: 25px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    color: #cccccc;
+    font-size: 14px;
+    margin-bottom: 6px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"],
+.form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Doomed', sans-serif;
+    transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #8b0000;
+}
+
+.form-group input::placeholder {
+    color: #666;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.checkbox-group label {
+    margin: 0;
+    font-size: 13px;
+}
+
+.checkbox-group a {
+    color: #ff3333;
+    text-decoration: none;
+}
+
+.checkbox-group a:hover {
+    text-decoration: underline;
+}
+
+.btn-registro {
+    width: 100%;
+    padding: 12px;
+    background-color: #8b0000;
+    border: 2px solid #ff3333;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 18px;
+    font-family: 'AmazDooM', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-registro:hover {
+    background-color: #ff3333;
+    transform: scale(1.02);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    main {
+        background-attachment: scroll;
+        min-height: 70vh;
+        padding: 20px 4%;
+    }
+    .form-container { padding: 25px 20px; }
+    .form-title { font-size: 24px; }
+
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group input[type="password"],
+    .form-group select {
+        font-size: 16px;
+        padding: 12px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+    }
+    .checkbox-group label { font-size: 14px; }
+}

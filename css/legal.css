@@ -1,0 +1,403 @@
+/* ============================================================
+   ESTILOS ESPECÍFICOS - Páginas legales
+   (Políticas de Privacidad y Términos y Condiciones)
+   ============================================================ */
+
+.priv-main {
+    background-image: url('../img/woom.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    min-height: calc(100vh - 100px - 60px);
+    padding: 20px;
+}
+
+.priv-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 25px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Índice lateral (mismo estilo que el menú lateral de la Wiki) */
+.priv-sidebar {
+    position: sticky;
+    top: 20px;
+    height: fit-content;
+}
+
+.priv-indice {
+    background: rgba(26, 26, 26, 0.95);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: 1px solid #333;
+    height: fit-content;
+}
+
+.priv-indice h3 {
+    color: #ff3333;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #8b0000;
+    padding-bottom: 8px;
+    font-family: 'AmazDooM', sans-serif;
+    letter-spacing: 1px;
+    font-size: 18px;
+}
+
+.lista-indice {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.indice-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    margin: 6px 0;
+    border-radius: 6px;
+    transition: all 0.2s;
+    font-weight: 500;
+    color: #cccccc;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.indice-item:hover {
+    background-color: rgba(139, 0, 0, 0.2);
+    color: #fff;
+}
+
+.indice-num {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(139, 0, 0, 0.35);
+    border: 2px solid #444;
+    border-radius: 6px;
+    color: #ff3333;
+    font-family: 'AmazDooM', sans-serif;
+    font-size: 13px;
+    transition: border-color 0.2s;
+}
+
+.indice-item:hover .indice-num {
+    border-color: #ff3333;
+}
+
+/* Contenido central */
+.priv-content {
+    min-height: 600px;
+}
+
+.priv-title {
+    color: #ff3333;
+    font-size: 28px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #8b0000;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 4px #000;
+    font-family: 'AmazDooM', sans-serif;
+}
+
+.priv-intro {
+    background-color: rgba(26, 26, 26, 0.9);
+    padding: 25px;
+    border-radius: 10px;
+    border: 1px solid #444;
+    margin-bottom: 20px;
+}
+
+.priv-intro p {
+    color: #cccccc;
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 15px;
+    text-align: justify;
+}
+
+.priv-intro p:last-child {
+    margin-bottom: 0;
+}
+
+.priv-intro strong {
+    color: #ff3333;
+}
+
+.priv-intro h3 {
+    color: #ff3333;
+    font-size: 20px;
+    margin-bottom: 15px;
+    font-family: 'AmazDooM', sans-serif;
+    letter-spacing: 1px;
+}
+
+.priv-intro a {
+    color: #ff3333;
+    text-decoration: none;
+}
+
+.priv-intro a:hover {
+    text-decoration: underline;
+}
+
+.priv-fecha {
+    display: inline-block;
+    margin-top: 5px;
+    padding: 8px 14px;
+    background-color: rgba(139, 0, 0, 0.1);
+    border-left: 3px solid #8b0000;
+    border-radius: 6px;
+    color: #999;
+    font-size: 12px;
+}
+
+/* Bloques de la política */
+.priv-bloque {
+    background-color: rgba(26, 26, 26, 0.9);
+    padding: 25px;
+    border-radius: 10px;
+    border: 1px solid #444;
+    margin-bottom: 20px;
+    transition: border-color 0.3s ease;
+    scroll-margin-top: 20px;
+}
+
+.priv-bloque:hover {
+    border-color: #8b0000;
+}
+
+.priv-bloque h3 {
+    color: #ff3333;
+    font-size: 20px;
+    margin-bottom: 15px;
+    font-family: 'AmazDooM', sans-serif;
+    letter-spacing: 1px;
+}
+
+.priv-bloque p {
+    color: #cccccc;
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 15px;
+    text-align: justify;
+}
+
+.priv-bloque p:last-child {
+    margin-bottom: 0;
+}
+
+.priv-bloque strong {
+    color: #ff3333;
+}
+
+.priv-bloque ul {
+    list-style: none;
+    padding: 0;
+}
+
+.priv-bloque ul li {
+    position: relative;
+    color: #cccccc;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 6px 0 6px 24px;
+    border-bottom: 1px solid #333;
+}
+
+.priv-bloque ul li:last-child {
+    border-bottom: none;
+}
+
+.priv-bloque ul li::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 15px;
+    width: 8px;
+    height: 8px;
+    background-color: #8b0000;
+    border: 1px solid #ff3333;
+}
+
+.priv-bloque ul li strong {
+    color: #ff3333;
+}
+
+.priv-bloque a {
+    color: #ff3333;
+    text-decoration: none;
+}
+
+.priv-bloque a:hover {
+    text-decoration: underline;
+}
+
+/* Datos recopilados (mismo estilo que las estadísticas de la Wiki) */
+.priv-datos {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #444;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.dato-item {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    background-color: rgba(139, 0, 0, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid #8b0000;
+}
+
+.dato-label {
+    color: #999;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.dato-valor {
+    color: #ff3333;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+/* Aviso destacado */
+.priv-alerta {
+    background-color: rgba(139, 0, 0, 0.15);
+    padding: 18px 20px;
+    border-radius: 10px;
+    border: 2px solid #8b0000;
+    margin-bottom: 20px;
+}
+
+.priv-alerta p {
+    color: #cccccc;
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 0;
+    text-align: justify;
+}
+
+.priv-alerta strong {
+    color: #ff3333;
+}
+
+/* Datos de contacto */
+.contacto-datos {
+    list-style: none;
+    padding: 0;
+}
+
+.contacto-datos li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid #333;
+    color: #cccccc;
+    font-size: 14px;
+}
+
+.contacto-datos li:last-child {
+    border-bottom: none;
+}
+
+.contacto-datos strong {
+    color: #ff3333;
+    min-width: 170px;
+}
+
+.contacto-datos span {
+    color: #999;
+}
+
+/* Botón volver */
+.btn-volver {
+    display: inline-block;
+    margin-top: 5px;
+    padding: 12px 30px;
+    background-color: #8b0000;
+    border: 2px solid #ff3333;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 16px;
+    font-family: 'AmazDooM', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-volver:hover {
+    background-color: #ff3333;
+    transform: scale(1.02);
+}
+
+/* Responsive */
+.contacto-datos li { overflow-wrap: anywhere; }
+
+/* Laptops chicas */
+@media (max-width: 1100px) {
+    .priv-main { padding: 16px; }
+    .priv-layout { grid-template-columns: 190px 1fr; gap: 18px; }
+    .priv-title { font-size: 24px; }
+    .priv-sidebar { max-height: calc(100vh - 40px); overflow-y: auto; }
+}
+
+/* Celulares y tablets */
+@media (max-width: 768px) {
+    .priv-main {
+        padding: 12px;
+        background-attachment: scroll;
+        min-height: 70vh;
+    }
+    .priv-layout { grid-template-columns: 1fr; gap: 15px; }
+    .priv-sidebar { position: static; max-height: none; overflow: visible; }
+
+    /* Índice en pastillas horizontales */
+    .priv-indice { padding: 10px; }
+    .priv-indice h3 { font-size: 16px; margin-bottom: 10px; }
+    .lista-indice {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .lista-indice::-webkit-scrollbar { display: none; }
+    .lista-indice li { flex: 0 0 auto; }
+    .indice-item {
+        margin: 0;
+        padding: 8px 12px;
+        min-height: 44px;
+        white-space: nowrap;
+        border: 1px solid #444;
+    }
+
+    .priv-title { font-size: 22px; letter-spacing: 1px; }
+    .priv-bloque,
+    .priv-intro { padding: 18px; }
+    .priv-bloque { scroll-margin-top: 12px; }
+    .priv-bloque h3,
+    .priv-intro h3 { font-size: 18px; }
+    .priv-bloque p,
+    .priv-intro p,
+    .priv-alerta p { text-align: left; }
+    .priv-datos { grid-template-columns: 1fr; }
+    .contacto-datos strong { min-width: 0; flex-basis: 100%; }
+    .btn-volver { width: 100%; }
+}

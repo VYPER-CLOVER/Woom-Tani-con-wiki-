@@ -1,0 +1,1758 @@
+(function () {
+  "use strict";
+
+  /* ---------------- Configuración general ---------------- */
+  const W = 640, H = 400;           // resolución interna de render
+  const FOV_PLANE = 0.66;           // ~66° de campo de visión
+  const MOVE_SPEED = 3.2;           // celdas/seg
+  const ROT_SPEED = 2.6;            // rad/seg (teclado)
+  const MOUSE_SENS = 0.0022;
+  const GAMEPAD_ROT_SPEED = 2.0;   // rad/seg a stick derecho al fondo
+  const GAMEPAD_DEADZONE = 0.18;
+  const GAMEPAD_TRIGGER_THRESHOLD = 0.4;
+  const TOUCH_ROT_SENS = 0.0055;
+  const TOUCH_JOYSTICK_MAX = 46;    // radio (px, en pantalla) del stick virtual
+  const PLAYER_RADIUS = 0.22;
+  const ENEMY_RADIUS = 0.25;
+  const PICKUP_RADIUS = 0.55;
+  const INTERACT_RADIUS = 1.4;
+  const WEAPON_RANGE = 14;
+  const DOOR_ANIM_TIME = 0.5;       // segundos que tarda una puerta en deslizarse hacia arriba
+  const LB_KEY = "dwLeaderboard_e1m1_v1";
+
+  /* ---------------- Mapa: recorrido casi lineal con giros + cuarto secreto ---------------- */
+  const MAP_W = 36, MAP_H = 80;
+  let map = [];
+  function resetMap() {
+    map = [];
+    for (let y = 0; y < MAP_H; y++) map.push(new Array(MAP_W).fill(1));
+  }
+  function carve(x0, y0, x1, y1, tile) {
+    tile = tile === undefined ? 0 : tile;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) map[y][x] = tile;
+  }
+  const SECRET_DOORS = [
+    { x: 18, y: 12 },  // puerta secreta 1: cuarto con el secret_item
+    { x: 25, y: 75 },  // puerta secreta 2: pared paralela a la del botón final, cuarto del ítem fabri
+  ];
+  const DOORS = [
+    { x: 31, y: 25 }, // puerta normal: un solo tile en el pasillo a la derecha de la sala de la escopeta (giro hacia el sur)
+  ];
+    function buildLevel() {
+    resetMap();
+    carve(3, 3, 9, 9);      // sala inicial
+    carve(9, 5, 16, 7);     // corredor 1 (recto, hacia el este)
+    carve(16, 2, 24, 9);    // sala B (enemigos + munición)
+    carve(19, 9, 21, 17);   // corredor 2 (giro hacia el sur)
+    carve(15, 17, 24, 24);  // sala C (enemigo + vida + armadura)
+    carve(24, 19, 30, 21);  // corredor 3 (giro hacia el este)
+    carve(28, 17, 34, 24);  // sala D (ya no es la final, ahora es una sala intermedia con la escopeta)
+    carve(14, 11, 17, 14);  // sala secreta
+
+    // --- Extensión: 3 salas nuevas con enemigos escalantes + salas de paso con ítems ---
+    carve(30, 24, 32, 28);  // corredor D -> conector 1
+    carve(24, 27, 34, 32);  // conector 1 (sala de paso: ítems + enemigo)
+    carve(16, 30, 26, 33);  // corredor conector 1 -> sala E1
+    carve(10, 33, 22, 40);  // sala E1 (1 imp + 2 zombis)
+    carve(14, 40, 24, 43);  // corredor E1 -> conector 2
+    carve(20, 42, 30, 47);  // conector 2 (sala de paso: ítems + enemigos)
+    carve(26, 46, 34, 49);  // corredor conector 2 -> sala E2
+    carve(28, 49, 34, 56);  // sala E2 (2 imps)
+    carve(20, 54, 29, 57);  // corredor E2 -> conector 3
+    carve(14, 56, 24, 61);  // conector 3 (sala de paso: ítems + enemigos)
+    carve(18, 60, 28, 63);  // corredor conector 3 -> sala E3
+    carve(20, 63, 32, 70);  // sala E3 (2 imps + 3 zombis)
+    carve(28, 69, 34, 72);  // corredor E3 -> sala final
+    carve(26, 72, 34, 78);  // sala final (nueva)
+    carve(20, 73, 24, 77);  // sala secreta 2 (ítem fabri), detrás de la pared paralela al botón final
+    map[75][35] = 6;        // pared del interruptor de fin de nivel (reubicado acá)
+
+    SECRET_DOORS.forEach((d) => { map[d.y][d.x] = 5; d.opened = false; d.triggered = false; d.animT = 0; }); // puertas secretas, cerradas (tipo 5 = textura secret_wall)
+    map[25][30] = 1; map[25][32] = 1; // angostamos el pasillo a un solo tile en la fila de la puerta
+    DOORS.forEach((d) => { map[d.y][d.x] = 7; d.opened = false; d.triggered = false; d.animT = 0; });        // puertas normales, cerradas (tipo 7 = textura door)
+  }
+
+  // Interruptor de fin de nivel: montado contra la pared este de la sala final
+  const FINISH_SWITCH = { x: 34.3, y: 75.5 };
+  function nearFinishSwitch(x, y) {
+    return Math.hypot(x - FINISH_SWITCH.x, y - FINISH_SWITCH.y) < INTERACT_RADIUS;
+  }
+  function isFloor(v) { return v === 0 || v === 9; }
+  function cellWalkable(cx, cy) {
+    if (cx < 0 || cy < 0 || cx >= MAP_W || cy >= MAP_H) return false;
+    return isFloor(map[cy][cx]);
+  }
+  function walkableWorld(x, y, r) {
+    const pts = [[x - r, y - r], [x + r, y - r], [x - r, y + r], [x + r, y + r]];
+    return pts.every(([px, py]) => cellWalkable(Math.floor(px), Math.floor(py)));
+  }
+
+  /* ---------------- Carga de imágenes---------------- */
+  const ASSET_PATHS = {
+    pistol: "../assets/armas/pistol.png",
+    pistol_shot: "../assets/armas/pistol_shot.png",
+    shotgun: "../assets/armas/shotgun.png",
+    shotgun_grap: "../assets/armas/shotgun_grap.png",
+    shotgun_hand: "../assets/armas/shotgun_hand.png",
+    shotgun_shot: "../assets/armas/shotgun_shot.png",
+    zombi_walk_stand: "../assets/enemigos/zombi_walk_stand.png",
+    zombi_walk_izquierda: "../assets/enemigos/zombi_walk_izquierda.png",
+    zombi_walk_derecha: "../assets/enemigos/zombi_walk_derecha.png",
+    zombi_attack: "../assets/enemigos/zombi_attack.png",
+    zombi_hit: "../assets/enemigos/zombi_hit.png",
+    imp_stand: "../assets/enemigos/imp_stand.png",
+    imp_walk: "../assets/enemigos/imp_walk.png",
+    imp_attack: "../assets/enemigos/imp_attack.png",
+    imp_hit: "../assets/enemigos/imp_hit.png",
+    ammo: "../assets/objetos/ammo.png",
+    armor: "../assets/objetos/armor.png",
+    health: "../assets/objetos/health.png",
+    secret_item: "../assets/objetos/secret_item.png",
+    fabri: "../assets/objetos/fabri.png",
+    // Texturas de paredes/piso/techo (se procesan aparte para sampleo por píxel)
+    wall: "../assets/escenario/wall.jpeg",
+    secret_wall: "../assets/escenario/secret_wall.jpeg",
+    button_wall: "../assets/escenario/button_wall.jpg",
+    door: "../assets/escenario/door.jpeg",
+    floor: "../assets/escenario/floor.jpeg",
+    techo: "../assets/escenario/techo.jpeg",
+  };
+  const TEXTURE_KEYS = ["wall", "secret_wall", "button_wall", "door", "floor", "techo"];
+
+  /* ---------------- Personajes jugables ----------------*/
+    const FACE_SLOTS = ["healthy", "hurt1", "hurt2", "critical", "pain1", "pain2", "death", "deidad"];
+  const PERON_FACES = {
+    healthy: "../assets/jugador/peron/peron1.png",
+    hurt1: "../assets/jugador/peron/peron2.png",
+    hurt2: "../assets/jugador/peron/peron3.png",
+    critical: "../assets/jugador/peron/peron4.png",
+    pain1: "../assets/jugador/peron/peron5.png",
+    pain2: "../assets/jugador/peron/peron6.png",
+    death: "../assets/jugador/peron/peron_death.png",
+    deidad: "../assets/jugador/peron/peron_deidad.png",
+  };
+  const JULIAN_FACES = {
+    healthy: "../assets/jugador/julian/julian1.png",
+    hurt1: "../assets/jugador/julian/julian2.png",
+    hurt2: "../assets/jugador/julian/julian3.png",
+    critical: "../assets/jugador/julian/julian4.png",
+    pain1: "../assets/jugador/julian/julian_hit1.png",
+    pain2: "../assets/jugador/julian/julian_hit2.png",
+    death: "../assets/jugador/julian/julian_death.png",
+    deidad: "../assets/jugador/julian/julian_deidad.png",
+  };
+  const MOME_FACES = {
+    healthy: "../assets/jugador/mome/mome1.png",
+    hurt1: "../assets/jugador/mome/mome2.png",
+    hurt2: "../assets/jugador/mome/mome3.png",
+    critical: "../assets/jugador/mome/mome4.png",
+    pain1: "../assets/jugador/mome/mome_hit1.png",
+    pain2: "../assets/jugador/mome/mome_hit2.png",
+    death: "../assets/jugador/mome/mome_death.png",
+    deidad: "../assets/jugador/mome/mome_deidad.png",
+  };
+  const PAPU_FACES = {
+    healthy: "../assets/jugador/papu/papu1.png",
+    hurt1: "../assets/jugador/papu/papu2.png",
+    hurt2: "../assets/jugador/papu/papu3.png",
+    critical: "../assets/jugador/papu/papu4.png",
+    pain1: "../assets/jugador/papu/papu_hit1.png",
+    pain2: "../assets/jugador/papu/papu_hit2.png",
+    death: "../assets/jugador/papu/papu_death.png",
+    deidad: "../assets/jugador/papu/papu_deidad.png",
+  };
+    const MONJE_FACES = {
+    healthy: "../assets/jugador/monje/monje1.png",
+    hurt1: "../assets/jugador/monje/monje2.png",
+    hurt2: "../assets/jugador/monje/monje3.png",
+    critical: "../assets/jugador/monje/monje4.png",
+    pain1: "../assets/jugador/monje/monje_hit.png",
+    pain2: "../assets/jugador/monje/monje_hit.png",
+    death: "../assets/jugador/monje/monje_death.png",
+    deidad: "../assets/jugador/monje/monje_deidad.png",
+  };
+    const CHARACTERS = [
+    { id: "peron",  name: "Perón",  faces: PERON_FACES },
+    { id: "julian", name: "Julián", faces: JULIAN_FACES },
+    { id: "mome",   name: "Mome",   faces: MOME_FACES },
+    { id: "papu",   name: "Papu",   faces: PAPU_FACES },
+    { id: "monje",  name: "Monje",  faces: MONJE_FACES },
+  ];
+  // DoomGuy no se muestra en la pantalla de selección: solo se activa con el
+  // código Konami como huevo de pascua (ver más abajo, cerca del keydown).
+  const DOOMGUY_FACES = {
+    healthy: "../assets/jugador/doomGuy/doomGuy1.png",
+    hurt1: "../assets/jugador/doomGuy/doomGuy2.png",
+    hurt2: "../assets/jugador/doomGuy/doomGuy3.png",
+    critical: "../assets/jugador/doomGuy/doomGuy4.png",
+    pain1: "../assets/jugador/doomGuy/doomGuy_hit1.png",
+    pain2: "../assets/jugador/doomGuy/doomGuy_hit2.png",
+    death: "../assets/jugador/doomGuy/doomGuy_death.png",
+    deidad: "../assets/jugador/doomGuy/doomGuy_deidad.png",
+  };
+  const DOOMGUY_CHARACTER = { id: "doomguy", name: "DoomGuy", faces: DOOMGUY_FACES };
+  CHARACTERS.concat([DOOMGUY_CHARACTER]).forEach((c) => {
+    c.faces = Object.assign({}, PERON_FACES, c.faces);
+    FACE_SLOTS.forEach((slot) => { ASSET_PATHS[c.id + "_" + slot] = c.faces[slot]; });
+  });
+
+  let selectedCharacter = CHARACTERS[0];
+  let pickedCharacter = selectedCharacter; // el que se eligió en la pantalla de personajes (el Konami no lo pisa)
+  function faceKey(slot) { return selectedCharacter.id + "_" + slot; }
+  const assets = {};
+  const textures = {};
+  function loadAssets(done) {
+    const names = Object.keys(ASSET_PATHS);
+    let remaining = names.length;
+    function finish() { remaining--; if (remaining <= 0) buildTextures(done); }
+    names.forEach((name) => {
+      const img = new Image();
+      img.ok = false;
+      img.onload = () => { img.ok = true; finish(); };
+      img.onerror = () => { console.warn("[DOOM WEB] No se pudo cargar el asset:", ASSET_PATHS[name]); img.ok = false; finish(); };
+      img.src = ASSET_PATHS[name];
+      assets[name] = img;
+    });
+  }
+  function buildTextures(done) {
+    const tmp = document.createElement("canvas");
+    const tctx = tmp.getContext("2d");
+    TEXTURE_KEYS.forEach((key) => {
+      const img = assets[key];
+      if (!img || !img.ok) { textures[key] = null; return; }
+      const w = img.naturalWidth || 64, h = img.naturalHeight || 64;
+      tmp.width = w; tmp.height = h;
+      tctx.drawImage(img, 0, 0, w, h);
+      try {
+        const data = tctx.getImageData(0, 0, w, h).data;
+        textures[key] = { data, width: w, height: h };
+      } catch (e) {
+        console.warn("[DOOM WEB] No se pudo leer la textura:", key, e);
+        textures[key] = null;
+      }
+    });
+    done();
+  }
+  function drawImageSafe(img, x, y, w, h, fallbackColor) {
+    if (img && img.ok) { ctx.drawImage(img, x, y, w, h); }
+    else { ctx.fillStyle = fallbackColor || "#7a2b12"; ctx.fillRect(x, y, w, h); }
+  }
+
+  /* ---------------- Estado del jugador ---------------- */
+  const player = {
+    x: 0, y: 0, angle: 0,
+    dirX: 0, dirY: 0, planeX: 0, planeY: 0,
+    health: 100, armor: 0, ammo: 40,
+    hasShotgun: false, weapon: "pistol",
+  };
+  function updateDirVectors() {
+    player.dirX = Math.cos(player.angle);
+    player.dirY = Math.sin(player.angle);
+    player.planeX = -player.dirY * FOV_PLANE;
+    player.planeY = player.dirX * FOV_PLANE;
+  }
+
+  /* ---------------- Cara del jugador (HUD) ---------------- */
+  let faceOverrideImgKey = null;
+  let faceOverrideTimer = 0;
+  let painAlternateToggle = false;
+  function currentFaceKey() {
+    if (faceOverrideTimer > 0) return faceKey(faceOverrideImgKey);
+    if (player.health > 75) return faceKey("healthy");
+    if (player.health > 50) return faceKey("hurt1");
+    if (player.health > 25) return faceKey("hurt2");
+    return faceKey("critical");
+  }
+
+  /* ---------------- Entidades ---------------- */
+  let enemies = [];
+  let items = [];
+    function buildEntities() {
+    enemies = [
+      mkEnemy(18.5, 4.5, "zombie"),  // sala B
+      mkEnemy(22.5, 6.5, "zombie"),  // sala B
+      mkEnemy(20.5, 20.5, "imp"),    // sala C
+      // --- extensión ---
+      mkEnemy(29.5, 29.5, "zombie"), // conector 1
+      mkEnemy(16.5, 36.5, "imp"),    // sala E1
+      mkEnemy(13.5, 35.5, "zombie"), // sala E1
+      mkEnemy(19.5, 38.5, "zombie"), // sala E1
+      mkEnemy(23.5, 44.5, "zombie"), // conector 2
+      mkEnemy(27.5, 45.5, "imp"),    // conector 2
+      mkEnemy(30.5, 51.5, "imp"),    // sala E2
+      mkEnemy(32.5, 54.5, "imp"),    // sala E2
+      mkEnemy(17.5, 58.5, "zombie"), // conector 3
+      mkEnemy(21.5, 59.5, "zombie"), // conector 3
+      mkEnemy(22.5, 65.5, "imp"),    // sala E3
+      mkEnemy(30.5, 66.5, "imp"),    // sala E3
+      mkEnemy(24.5, 68.5, "zombie"), // sala E3
+      mkEnemy(28.5, 64.5, "zombie"), // sala E3
+      mkEnemy(26.5, 69.5, "zombie"), // sala E3
+    ];
+    items = [
+      mkItem(20.5, 7.5, "ammo", 15),        // sala B
+      mkItem(17.5, 22.5, "health", 30),     // sala C
+      mkItem(22.5, 21.5, "armor", 50),      // sala C
+      mkItem(31.5, 20.5, "shotgun", 15),    // sala D
+      mkItem(15.5, 12.5, "secret", 0),      // dentro del cuarto secreto
+      mkItem(22.5, 75.5, "fabri", 0),       // dentro del cuarto secreto 2 (fabri, 5000 puntos)
+      // --- extensión ---
+      mkItem(26.5, 29.5, "ammo", 15),       // conector 1
+      mkItem(32.5, 29.5, "health", 25),     // conector 1
+      mkItem(12.5, 39.5, "ammo", 15),       // sala E1
+      mkItem(20.5, 35.5, "armor", 30),      // sala E1
+      mkItem(22.5, 45.5, "ammo", 15),       // conector 2
+      mkItem(28.5, 44.5, "health", 25),     // conector 2
+      mkItem(29.5, 53.5, "health", 30),     // sala E2
+      mkItem(33.5, 51.5, "ammo", 20),       // sala E2
+      mkItem(16.5, 60.5, "armor", 30),      // conector 3
+      mkItem(22.5, 57.5, "ammo", 15),       // conector 3
+      mkItem(21.5, 69.5, "health", 30),     // sala E3
+      mkItem(31.5, 64.5, "armor", 40),      // sala E3
+      mkItem(29.5, 74.5, "health", 30),     // sala final, de regalo
+    ];
+  }
+  function mkEnemy(x, y, kind) {
+    const isImp = kind === "imp";
+    return {
+      x, y, kind, alive: true,
+      hp: isImp ? 55 : 30,
+      maxHp: isImp ? 55 : 30,
+      speed: isImp ? 1.6 : 1.3,
+      dmg: isImp ? 14 : 8,
+      sightRange: isImp ? 9 : 7,
+      attackRange: isImp ? 5.5 : 1.15,
+      attackInterval: isImp ? 1.6 : 1.1,
+      attackCooldown: Math.random(),
+      chasing: false,
+      hitTimer: 0,
+      attackTimer: 0,
+      walkClock: 0,
+      walkToggle: false,
+    };
+  }
+  function mkItem(x, y, type, amount) {
+    return { x, y, type, amount, taken: false };
+  }
+
+  /* ---------------- Puntaje ---------------- */
+  let score = 0;
+  let kills = 0;
+  let totalRoundsFired = 0;
+  let levelStartTime = 0;
+
+  /* ---------------- Estado del juego / pantallas ---------------- */
+  let state = "controlselect"; // controlselect | charselect | songselect | menu | playing | dead | won
+  const keys = {};
+  let muzzleFlashTimer = 0;
+  let weaponGrabTimer = 0;
+  let walkCycle = 0;
+  let isMoving = false;
+  let zBuffer = new Array(W).fill(1e9);
+  let nearFinish = false;
+
+  /* ---------------- Esquema de control: teclado | gamepad | mobile ---------------- */
+  let controlScheme = "keyboard";
+  const gpMove = { mx: 0, my: 0 };
+  let gpPrevButtons = [];
+  const CONTROL_SUBTITLES = {
+    keyboard: "Nivel 1. Movete con W A S D (o flechas), mirá con el mouse (click para capturarlo) o con Izquierda/Derecha, disparás con click o espacio. Cambiá de arma con 1 (pistola) y 2 (escopeta). Presioná E para interactuar con lo que tengas cerca (interruptores, puertas).",
+    gamepad: "Nivel 1. Movete con el stick izquierdo del mando, mirá con el stick derecho, disparás con R2. Cambiá de arma con L1 (pistola) y R1 (escopeta). Presioná ◻ (cuadrado) para interactuar con lo que tengas cerca (interruptores, puertas).",
+    mobile: "Nivel 1. Movete con el joystick de la izquierda, mirá arrastrando el dedo por la derecha de la pantalla. Usá los botones para disparar, interactuar (interruptores, puertas) y cambiar de arma.",
+  };
+
+  /* ---------------- Touch (control por celular) ---------------- */
+  let touchMoveId = null, touchMoveDX = 0, touchMoveDY = 0;
+  let touchLookId = null, touchLookLastX = 0;
+  let elTouchControls, elJoyStick, elJoyBase;
+
+  /* ---------------- DOM ---------------- */
+  let root, canvas, ctx, elHealth, elArmor, elAmmo, elScoreLive, elFaceImg, elWeaponIcon, elInteractHint;
+  let overlayControlSelect, overlayCharSelect, overlaySongSelect, overlayMenu, overlayEnd, overlayLeaderboard, hitFlash, elMenuSubtitle;
+
+  /* ---------------- Estilos de las pantallas de selección de personaje y de canción ----------------*/
+  const EXTRA_SCREENS_CSS = `
+/* ---------- Pantalla de selección de personaje ---------- */
+#dw-overlay-charselect { gap: clamp(10px, 2vh, 18px); }
+#dw-char-options {
+  display: flex;
+  gap: clamp(6px, 1.4%, 14px);
+  justify-content: center;
+  width: 100%;
+  max-width: 860px;
+}
+.dw-char-card {
+  font-family: 'Oswald', sans-serif;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: clamp(6px, 1.4%, 12px);
+  background: #100c08cc;
+  border: 2px solid var(--dw-rust-dim);
+  color: var(--dw-bone);
+  cursor: pointer;
+  transition: transform 100ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.dw-char-card:hover {
+  border-color: var(--dw-rust);
+  background: #1a130ce6;
+  transform: translateY(-3px);
+}
+.dw-char-card.dw-selected {
+  border-color: var(--dw-rust);
+  background: #24160ce6;
+  box-shadow: 0 0 0 2px var(--dw-rust), 0 0 22px #b33a1a88;
+  transform: translateY(-3px);
+}
+.dw-char-img {
+  width: 100%;
+  aspect-ratio: 130 / 158;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: #0a0705;
+  border: 1px solid #2a1f14;
+}
+.dw-char-name {
+  font-size: clamp(11px, 1.6vw, 17px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--dw-bone);
+  text-align: center;
+  line-height: 1.2;
+}
+.dw-char-card.dw-selected .dw-char-name { color: var(--dw-rust); }
+.dw-char-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+#dw-overlay-charselect .dw-btn { font-size: clamp(14px, 1.8vw, 20px); padding: 12px 32px; }
+
+/* ---------- Pantalla de selección de canción ---------- */
+#dw-overlay-songselect { gap: clamp(8px, 1.8vh, 16px); }
+#dw-song-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(4px, 1vh, 9px) clamp(6px, 1.2vw, 14px);
+  width: 100%;
+  max-width: 860px;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dw-rust-dim) transparent;
+}
+.dw-song-row {
+  font-family: 'Oswald', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: clamp(5px, 1.2vh, 12px) 16px;
+  background: #100c08cc;
+  border: 2px solid var(--dw-rust-dim);
+  color: var(--dw-bone);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 100ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.dw-song-row:hover { border-color: var(--dw-rust); background: #1a130ce6; }
+.dw-song-row.dw-selected {
+  border-color: var(--dw-rust);
+  background: #24160ce6;
+  box-shadow: 0 0 0 2px var(--dw-rust), 0 0 22px #b33a1a88;
+}
+.dw-song-num {
+  flex: 0 0 auto;
+  min-width: 1.4em;
+  font-size: clamp(14px, 2.2vw, 22px);
+  font-weight: 700;
+  color: var(--dw-rust);
+  text-align: center;
+}
+.dw-song-name {
+  flex: 1 1 auto;
+  font-size: clamp(12px, 1.9vw, 20px);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.dw-song-mark { flex: 0 0 auto; color: var(--dw-rust); opacity: 0; font-size: clamp(12px, 1.8vw, 18px); }
+.dw-song-row.dw-selected .dw-song-mark { opacity: 1; }
+.dw-song-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+#dw-overlay-songselect .dw-btn { font-size: clamp(14px, 1.8vw, 20px); padding: 12px 32px; }
+
+/* ---------- Cursor del mando en los menús (cruceta + X) ---------- */
+.dw-btn.dw-gp-focus {
+  background: #e0562a;
+  color: #10100c;
+  transform: translateY(-2px) scale(1.07);
+  filter: brightness(1.12);
+}
+.dw-btn.dw-secondary.dw-gp-focus { background: var(--dw-bone); color: #10100c; }
+.dw-char-card.dw-gp-focus,
+.dw-song-row.dw-gp-focus,
+.dw-control-opt.dw-gp-focus {
+  border-color: var(--dw-bone);
+  background: #2a1b10ee;
+  box-shadow: 0 0 0 2px var(--dw-bone), 0 0 22px #b33a1acc;
+  transform: translateY(-3px);
+}
+`;
+  function injectExtraScreenStyles() {
+    if (document.getElementById("dw-extra-screens-styles")) return;
+    const st = document.createElement("style");
+    st.id = "dw-extra-screens-styles";
+    st.textContent = EXTRA_SCREENS_CSS;
+    document.head.appendChild(st);
+  }
+
+  function buildDOM(container) {
+    injectExtraScreenStyles();
+    container.innerHTML = `
+      <div id="dw-root" tabindex="0">
+        <canvas id="dw-canvas" width="${W}" height="${H}"></canvas>
+        <div id="dw-crosshair"></div>
+        <div id="dw-hit-flash"></div>
+        <div id="dw-interact-hint" class="dw-hidden">Presioná <b>E</b> para terminar el nivel</div>
+
+                  <div id="dw-hud">
+          <div class="dw-hud-side dw-hud-left">
+            <div class="dw-hud-group">
+              <img class="dw-hud-icon" src="${ASSET_PATHS.ammo}" alt="">
+              <span class="dw-hud-num" id="dw-ammo">0</span>
+            </div>
+            <div class="dw-hud-group">
+              <img class="dw-hud-icon" src="${ASSET_PATHS.armor}" alt="">
+              <span class="dw-hud-num" id="dw-armor">0</span>
+            </div>
+          </div>
+
+          <img class="dw-hud-face" id="dw-face-img" src="${ASSET_PATHS[faceKey('healthy')]}" alt="">
+
+          <div class="dw-hud-side dw-hud-right">
+            <div class="dw-hud-group dw-hud-score-group">
+              <span class="dw-hud-score-label">PUNTAJE</span>
+              <span class="dw-hud-num" id="dw-score">0</span>
+            </div>
+            <div class="dw-hud-group">
+              <img class="dw-hud-icon dw-hud-weapon-icon" id="dw-weapon-icon" src="${ASSET_PATHS.pistol}" alt="">
+            </div>
+            <div class="dw-hud-group">
+              <img class="dw-hud-icon" src="${ASSET_PATHS.health}" alt="">
+              <span class="dw-hud-num" id="dw-health">100</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dw-overlay" id="dw-overlay-controlselect">
+          <h1 class="dw-title" style="font-size:clamp(30px, 5.6vw, 54px);">¿CÓMO QUERÉS JUGAR?</h1>
+          <div id="dw-control-options">
+            <button class="dw-control-opt" id="dw-opt-keyboard">
+              <span class="dw-control-opt-title">Teclado y mouse</span>
+              <span class="dw-control-opt-desc">WASD / flechas + mouse para apuntar</span>
+            </button>
+            <button class="dw-control-opt" id="dw-opt-gamepad">
+              <span class="dw-control-opt-title">Mando (PS3)</span>
+              <span class="dw-control-opt-desc">Stick izquierdo, stick derecho y gatillos</span>
+            </button>
+            <button class="dw-control-opt" id="dw-opt-mobile">
+              <span class="dw-control-opt-title">Celular</span>
+              <span class="dw-control-opt-desc">Joystick y botones en pantalla</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="dw-overlay dw-hidden" id="dw-overlay-charselect">
+          <h1 class="dw-title" style="font-size:clamp(26px, 4.6vw, 46px);">ELEGÍ TU PERSONAJE</h1>
+          <div id="dw-char-options">
+            ${CHARACTERS.map((c, i) => `
+            <button class="dw-char-card${i === 0 ? " dw-selected" : ""}" data-char="${c.id}">
+              <img class="dw-char-img" src="${c.faces.healthy}" alt="${c.name}">
+              <span class="dw-char-name">${c.name}</span>
+            </button>`).join("")}
+          </div>
+          <div class="dw-char-actions">
+            <button class="dw-btn dw-secondary" id="dw-btn-char-back">Volver</button>
+            <button class="dw-btn" id="dw-btn-char-continue">Continuar</button>
+          </div>
+        </div>
+
+        <div class="dw-overlay dw-hidden" id="dw-overlay-songselect">
+          <h1 class="dw-title" style="font-size:clamp(26px, 4.6vw, 46px);">ELEGÍ LA CANCIÓN</h1>
+          <div id="dw-song-options">
+            ${SONGS.map((sg, i) => `
+            <button class="dw-song-row${i === 0 ? " dw-selected" : ""}" data-song="${sg.id}">
+              <span class="dw-song-num">${i + 1}</span>
+              <span class="dw-song-name">${sg.name}</span>
+              <span class="dw-song-mark">&#9654;</span>
+            </button>`).join("")}
+          </div>
+          <div class="dw-song-actions">
+            <button class="dw-btn dw-secondary" id="dw-btn-song-back">Volver</button>
+            <button class="dw-btn" id="dw-btn-song-continue">Continuar</button>
+          </div>
+        </div>
+
+        <div class="dw-overlay dw-hidden" id="dw-overlay-menu">
+          <h1 class="dw-title">WOOM-TANI</h1>
+          <p class="dw-subtitle" id="dw-menu-subtitle">Nivel 1. Movete con W A S D (o flechas), mirá con el mouse (click para capturarlo) o con Izquierda/Derecha, disparás con click o espacio. Cambiá de arma con 1 (pistola) y 2 (escopeta). Presioná E para interactuar con lo que tengas cerca (interruptores, puertas).</p>
+          <button class="dw-btn" id="dw-btn-start">Empezar</button>
+        <div class="dw-subtitle dw-pointerlock-hint"></div>
+          <div id="dw-menu-links">
+            <button class="dw-btn dw-secondary" id="dw-btn-view-scores">Ver tabla de puntajes</button>
+            <button class="dw-btn dw-secondary" id="dw-btn-change-char">Cambiar personaje</button>
+            <button class="dw-btn dw-secondary" id="dw-btn-change-song">Cambiar canción</button>
+            <button class="dw-btn dw-secondary" id="dw-btn-change-controls">Cambiar forma de jugar</button>
+          </div>
+        </div>
+
+        <div class="dw-overlay dw-hidden" id="dw-overlay-end">
+          <h1 class="dw-title" id="dw-end-title">NIVEL COMPLETADO</h1>
+          <div class="dw-score-breakdown" id="dw-breakdown"></div>
+          <div id="dw-save-row">
+            <input id="dw-name-input" maxlength="16" placeholder="TU NOMBRE" autocomplete="off">
+            <button class="dw-btn" id="dw-btn-save">Guardar puntaje</button>
+          </div>
+          <button class="dw-btn dw-secondary dw-hidden" id="dw-btn-retry">Reintentar</button>
+        </div>
+
+        <div class="dw-overlay dw-hidden" id="dw-overlay-leaderboard">
+          <h1 class="dw-title" id="dw-lb-title">TABLA DE PUNTAJES</h1>
+          <table id="dw-leaderboard-table"><thead><tr><th>#</th><th>Nombre</th><th>Puntaje</th></tr></thead><tbody id="dw-lb-body"></tbody></table>
+          <button class="dw-btn" id="dw-btn-restart">Jugar de nuevo</button>
+        </div>
+
+        <div id="dw-touch-controls" class="dw-hidden">
+          <div id="dw-joy-base">
+            <div id="dw-joy-stick"></div>
+          </div>
+          <div id="dw-touch-buttons">
+            <button id="dw-touch-interact" class="dw-touch-btn dw-touch-btn-round">E</button>
+            <button id="dw-touch-shoot" class="dw-touch-btn dw-touch-btn-fire">FUEGO</button>
+            <div id="dw-touch-weapons">
+              <button id="dw-touch-w1" class="dw-touch-btn dw-touch-btn-small">1</button>
+              <button id="dw-touch-w2" class="dw-touch-btn dw-touch-btn-small">2</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    root = container.querySelector("#dw-root");
+    canvas = container.querySelector("#dw-canvas");
+    ctx = canvas.getContext("2d");
+    hitFlash = container.querySelector("#dw-hit-flash");
+    elHealth = container.querySelector("#dw-health");
+    elArmor = container.querySelector("#dw-armor");
+    elAmmo = container.querySelector("#dw-ammo");
+    elScoreLive = container.querySelector("#dw-score");
+    elWeaponIcon = container.querySelector("#dw-weapon-icon");
+    elFaceImg = container.querySelector("#dw-face-img");
+    elInteractHint = container.querySelector("#dw-interact-hint");
+    overlayControlSelect = container.querySelector("#dw-overlay-controlselect");
+    overlayCharSelect = container.querySelector("#dw-overlay-charselect");
+    overlaySongSelect = container.querySelector("#dw-overlay-songselect");
+    overlayMenu = container.querySelector("#dw-overlay-menu");
+    overlayEnd = container.querySelector("#dw-overlay-end");
+    overlayLeaderboard = container.querySelector("#dw-overlay-leaderboard");
+    elMenuSubtitle = container.querySelector("#dw-menu-subtitle");
+    elTouchControls = container.querySelector("#dw-touch-controls");
+    elJoyStick = container.querySelector("#dw-joy-stick");
+    elJoyBase = container.querySelector("#dw-joy-base");
+
+    container.querySelector("#dw-opt-keyboard").addEventListener("click", () => chooseControlScheme("keyboard"));
+    container.querySelector("#dw-opt-gamepad").addEventListener("click", () => chooseControlScheme("gamepad"));
+    container.querySelector("#dw-opt-mobile").addEventListener("click", () => chooseControlScheme("mobile"));
+    container.querySelector("#dw-btn-change-controls").addEventListener("click", () => {
+      overlayMenu.classList.add("dw-hidden");
+      overlayControlSelect.classList.remove("dw-hidden");
+      elTouchControls.classList.add("dw-hidden");
+      state = "controlselect";
+    });
+    container.querySelector("#dw-btn-change-char").addEventListener("click", showCharSelect);
+    container.querySelectorAll(".dw-char-card").forEach((card) => {
+      card.addEventListener("click", () => selectCharacter(card.dataset.char));
+    });
+    container.querySelector("#dw-btn-char-back").addEventListener("click", () => {
+      overlayCharSelect.classList.add("dw-hidden");
+      overlayControlSelect.classList.remove("dw-hidden");
+      elTouchControls.classList.add("dw-hidden");
+      state = "controlselect";
+    });
+    container.querySelector("#dw-btn-char-continue").addEventListener("click", showSongSelect);
+    container.querySelector("#dw-btn-change-song").addEventListener("click", showSongSelect);
+    container.querySelectorAll(".dw-song-row").forEach((row) => {
+      row.addEventListener("click", () => selectSong(row.dataset.song));
+    });
+    container.querySelector("#dw-btn-song-back").addEventListener("click", showCharSelect);
+    container.querySelector("#dw-btn-song-continue").addEventListener("click", () => {
+      overlaySongSelect.classList.add("dw-hidden");
+      overlayMenu.classList.remove("dw-hidden");
+      state = "menu";
+      playMenuMusic();
+    });
+    container.querySelector("#dw-btn-start").addEventListener("click", startLevel);
+    container.querySelector("#dw-btn-view-scores").addEventListener("click", () => showLeaderboard(null));
+    container.querySelector("#dw-btn-restart").addEventListener("click", () => {
+      overlayLeaderboard.classList.add("dw-hidden");
+      overlayMenu.classList.remove("dw-hidden");
+      state = "menu";
+      playMenuMusic();
+    });
+    container.querySelector("#dw-btn-save").addEventListener("click", onSaveScore);
+    container.querySelector("#dw-btn-retry").addEventListener("click", startLevel);
+
+    canvas.addEventListener("click", onCanvasClick);
+    document.addEventListener("keydown", (e) => {
+      if (state === "playing") {
+        keys[e.code] = true;
+        if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) e.preventDefault();
+        if (e.code === "Space") tryShoot();
+        if (e.code === "KeyE") tryInteract();
+        if (e.code === "Digit1") player.weapon = "pistol";
+        if (e.code === "Digit2" && player.hasShotgun) player.weapon = "shotgun";
+        checkKonamiCode(e.code);
+      }
+    });
+    document.addEventListener("keyup", (e) => { keys[e.code] = false; });
+    document.addEventListener("mousemove", (e) => {
+      if (state === "playing" && controlScheme === "keyboard" && document.pointerLockElement === canvas) {
+        player.angle += e.movementX * MOUSE_SENS;
+        updateDirVectors();
+      }
+    });
+
+    setupTouchControls(container);
+  }
+
+  function chooseControlScheme(scheme) {
+    controlScheme = scheme;
+    elMenuSubtitle.textContent = CONTROL_SUBTITLES[scheme] || CONTROL_SUBTITLES.keyboard;
+    const hint = overlayMenu.querySelector(".dw-pointerlock-hint");
+    if (hint) hint.classList.toggle("dw-hidden", scheme !== "keyboard");
+    overlayControlSelect.classList.add("dw-hidden");
+    showCharSelect();
+    if (scheme === "mobile") tryForceLandscape();
+  }
+
+  /* ---------------- Selección de personaje ---------------- */
+  function showCharSelect() {
+    overlayMenu.classList.add("dw-hidden");
+    overlaySongSelect.classList.add("dw-hidden");
+    overlayCharSelect.classList.remove("dw-hidden");
+    state = "charselect";
+  }
+  /* ---------------- Selección de canción ---------------- */
+  function showSongSelect() {
+    overlayCharSelect.classList.add("dw-hidden");
+    overlayMenu.classList.add("dw-hidden");
+    overlaySongSelect.classList.remove("dw-hidden");
+    state = "songselect";
+  }
+  function selectSong(id) {
+    const song = SONGS.find((x) => x.id === id);
+    if (!song) return;
+    selectedSong = song;
+    overlaySongSelect.querySelectorAll(".dw-song-row").forEach((row) => {
+      row.classList.toggle("dw-selected", row.dataset.song === id);
+    });
+    // Descarta la música ya cargada para que la próxima partida use la nueva
+    if (musicAudio) { musicAudio.pause(); musicAudio = null; }
+  }
+  function selectCharacter(id) {
+    const c = CHARACTERS.find((ch) => ch.id === id);
+    if (!c) return;
+    selectedCharacter = c;
+    pickedCharacter = c;
+    overlayCharSelect.querySelectorAll(".dw-char-card").forEach((card) => {
+      card.classList.toggle("dw-selected", card.dataset.char === id);
+    });
+    elFaceImg.src = ASSET_PATHS[faceKey("healthy")];
+  }
+
+    // ---- Huevo de pascua: código Konami cambia el personaje a DoomGuy ----
+  const KONAMI_CODE = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"];
+  let konamiProgress = 0;
+  function checkKonamiCode(code) {
+    if (code === KONAMI_CODE[konamiProgress]) {
+      konamiProgress++;
+      if (konamiProgress === KONAMI_CODE.length) {
+        konamiProgress = 0;
+        playSound("konami");
+        selectedCharacter = DOOMGUY_CHARACTER;
+        elFaceImg.src = ASSET_PATHS[faceKey("healthy")];
+      }
+    } else {
+      konamiProgress = (code === KONAMI_CODE[0]) ? 1 : 0;
+    }
+  }
+
+  function tryForceLandscape() {
+    try {
+      const el = root || document.documentElement;
+      const requestFS = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      const doLock = () => {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock("landscape").catch(() => {});
+        }
+      };
+      if (requestFS) {
+        Promise.resolve(requestFS.call(el)).then(doLock).catch(doLock);
+      } else {
+        doLock();
+      }
+    } catch (e) { /* sin soporte: queda el aviso visual de girar el celular */ }
+  }
+
+  function onCanvasClick() {
+    if (state === "menu") { startLevel(); return; }
+    if (state === "playing") {
+      if (controlScheme === "keyboard" && canvas.requestPointerLock && document.pointerLockElement !== canvas) {
+        canvas.requestPointerLock();
+      }
+      if (controlScheme === "keyboard") tryShoot();
+    }
+  }
+
+  function tryInteract() {
+    if (nearFinish) { state = "won"; playVictoriaMusic(); showEndScreen(true); return; }
+    for (const d of SECRET_DOORS) {
+      if (d.triggered) continue;
+      const dx = player.x - (d.x + 0.5), dy = player.y - (d.y + 0.5);
+      if (Math.hypot(dx, dy) < INTERACT_RADIUS) {
+        d.triggered = true;
+        d.animT = 0;
+        playSound("door");
+        faceOverrideImgKey = "deidad";
+        faceOverrideTimer = 2.2;
+        return;
+      }
+    }
+    for (const d of DOORS) {
+      if (d.triggered) continue;
+      const dx = player.x - (d.x + 0.5), dy = player.y - (d.y + 0.5);
+      if (Math.hypot(dx, dy) < INTERACT_RADIUS) {
+        d.triggered = true;
+        d.animT = 0;
+        playSound("door");
+        return;
+      }
+    }
+  }
+
+  /* ---------------- Gamepad (mando estilo PS3) ---------------- */
+  function getActiveGamepad() {
+    if (!navigator.getGamepads) return null;
+    const pads = navigator.getGamepads();
+    for (const gp of pads) if (gp) return gp;
+    return null;
+  }
+
+  function pollGamepad(dt) {
+    gpMove.mx = 0; gpMove.my = 0;
+    if (controlScheme !== "gamepad" || state !== "playing") return;
+    const gp = getActiveGamepad();
+    if (!gp) return;
+    const btn = (i) => (gp.buttons[i] ? gp.buttons[i].pressed || gp.buttons[i].value > GAMEPAD_TRIGGER_THRESHOLD : false);
+    const wasPressed = (i) => !!gpPrevButtons[i];
+
+    // Stick izquierdo: mover (adelante/atrás/costados), analógico
+    let lx = gp.axes[0] || 0, ly = gp.axes[1] || 0;
+    if (Math.abs(lx) < GAMEPAD_DEADZONE) lx = 0;
+    if (Math.abs(ly) < GAMEPAD_DEADZONE) ly = 0;
+    if (lx !== 0 || ly !== 0) {
+      const fwd = -ly, strafe = lx;
+      const rightX = -player.dirY, rightY = player.dirX;
+      gpMove.mx = player.dirX * fwd + rightX * strafe;
+      gpMove.my = player.dirY * fwd + rightY * strafe;
+    }
+
+    // Stick derecho: mirar/girar la cámara
+    const lookX = gp.axes[2] || 0;
+    if (Math.abs(lookX) > GAMEPAD_DEADZONE) {
+      player.angle += lookX * GAMEPAD_ROT_SPEED * dt;
+      updateDirVectors();
+    }
+
+    // R2 (gatillo derecho, botón 7): disparar. Cuadrado (botón 2): interactuar.
+    // L1 (botón 4) / R1 (botón 5): cambiar de arma.
+    if (btn(7) && !wasPressed(7)) tryShoot();
+    if (btn(2) && !wasPressed(2)) tryInteract();
+    if (btn(4) && !wasPressed(4)) player.weapon = "pistol";
+    if (btn(5) && !wasPressed(5) && player.hasShotgun) player.weapon = "shotgun";
+
+    // Cruceta (D-pad): botones 12 arriba, 13 abajo, 14 izquierda, 15 derecha. Alimenta el código Konami.
+    [[12, "ArrowUp"], [13, "ArrowDown"], [14, "ArrowLeft"], [15, "ArrowRight"]].forEach(([i, code]) => {
+      if (btn(i) && !wasPressed(i)) checkKonamiCode(code);
+    }); 
+
+    gpPrevButtons = gp.buttons.map((b) => b.pressed || b.value > GAMEPAD_TRIGGER_THRESHOLD);
+  }
+
+    /* ---------------- Menús con el mando: cruceta para moverse + X para elegir ---------------- */
+  let gpMenuFocus = null;   // botón donde está el "cursor" del mando
+  let gpMenuPrev = [];      // botones apretados en el frame anterior (para detectar el momento en que se aprietan)
+
+  function gpMenuSetFocus(el) {
+    if (gpMenuFocus) gpMenuFocus.classList.remove("dw-gp-focus");
+    gpMenuFocus = el;
+    if (el) {
+      el.classList.add("dw-gp-focus");
+      if (el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }
+
+  // Busca el botón más cercano en la dirección apretada (sirve para filas, columnas y grillas)
+  function gpMenuMove(dir, list) {
+    const cur = gpMenuFocus.getBoundingClientRect();
+    const cx = cur.left + cur.width / 2, cy = cur.top + cur.height / 2;
+    let best = null, bestScore = Infinity;
+    list.forEach((el) => {
+      if (el === gpMenuFocus) return;
+      const r = el.getBoundingClientRect();
+      const dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy;
+      let along, across;
+      if (dir === "up") { along = -dy; across = Math.abs(dx); }
+      else if (dir === "down") { along = dy; across = Math.abs(dx); }
+      else if (dir === "left") { along = -dx; across = Math.abs(dy); }
+      else { along = dx; across = Math.abs(dy); }
+      if (along < 4) return; // no está de ese lado
+      // Mejor cuanto más cerca y más alineado. En empates, gana el botón principal (Continuar) sobre el secundario (Volver).
+      const score = along + across * 2 - (el.classList.contains("dw-secondary") ? 0 : 20);
+      if (score < bestScore) { bestScore = score; best = el; }
+    });
+    if (best) gpMenuSetFocus(best);
+  }
+
+  function pollGamepadMenu() {
+    const gp = getActiveGamepad();
+    const pressed = gp ? gp.buttons.map((b) => b.pressed || b.value > GAMEPAD_TRIGGER_THRESHOLD) : [];
+    const prev = gpMenuPrev;
+    gpMenuPrev = pressed;
+    const justPressed = (i) => !!pressed[i] && !prev[i];
+
+    // Solo con una pantalla de menú a la vista y habiendo elegido jugar con mando. En la pantalla
+    // "¿Cómo querés jugar?" anda siempre, para poder elegir "Mando" con el propio mando.
+    const overlay = state === "playing" ? null
+      : [overlayControlSelect, overlayCharSelect, overlaySongSelect, overlayMenu, overlayEnd, overlayLeaderboard]
+          .find((o) => o && !o.classList.contains("dw-hidden"));
+    if (!gp || !overlay || !(controlScheme === "gamepad" || state === "controlselect")) {
+      if (gpMenuFocus) gpMenuSetFocus(null);
+      return;
+    }
+
+    const list = Array.from(overlay.querySelectorAll("button")).filter((b) => b.offsetParent !== null);
+    if (!list.length) return;
+    if (!gpMenuFocus || !list.includes(gpMenuFocus)) {
+      // Al entrar a una pantalla, el cursor arranca en lo que ya estaba elegido o en el botón principal
+      gpMenuSetFocus(
+        (overlay === overlayControlSelect && overlay.querySelector("#dw-opt-gamepad"))
+        || overlay.querySelector(".dw-selected")
+        || list.find((b) => !b.classList.contains("dw-secondary"))
+        || list[0]
+      );
+    }
+
+    // Cruceta: 12 arriba, 13 abajo, 14 izquierda, 15 derecha. X (botón 0): elegir.
+    [[12, "up"], [13, "down"], [14, "left"], [15, "right"]].forEach(([i, dir]) => {
+      if (justPressed(i)) gpMenuMove(dir, list);
+    });
+    if (justPressed(0) && gpMenuFocus) gpMenuFocus.click();
+  }
+
+  /* ---------------- Controles táctiles (celular) ---------------- */
+  function resetTouchState() {
+    touchMoveId = null; touchMoveDX = 0; touchMoveDY = 0;
+    touchLookId = null;
+    if (elJoyStick) elJoyStick.style.transform = "translate(0px, 0px)";
+  }
+
+  function setupTouchControls(container) {
+    const joyBase = elJoyBase, joyStick = elJoyStick;
+
+    function joyStart(e) {
+      if (touchMoveId !== null) return;
+      const t = e.changedTouches[0];
+      touchMoveId = t.identifier;
+      updateJoy(t);
+      e.preventDefault();
+    }
+    function updateJoy(t) {
+      const rect = joyBase.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+      let dx = t.clientX - cx, dy = t.clientY - cy;
+      const len = Math.hypot(dx, dy);
+      if (len > TOUCH_JOYSTICK_MAX) { dx = (dx / len) * TOUCH_JOYSTICK_MAX; dy = (dy / len) * TOUCH_JOYSTICK_MAX; }
+      joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+      touchMoveDX = dx / TOUCH_JOYSTICK_MAX;
+      touchMoveDY = dy / TOUCH_JOYSTICK_MAX;
+    }
+    function joyMove(e) {
+      for (const t of e.changedTouches) {
+        if (t.identifier === touchMoveId) { updateJoy(t); e.preventDefault(); }
+      }
+    }
+    function joyEnd(e) {
+      for (const t of e.changedTouches) {
+        if (t.identifier === touchMoveId) {
+          touchMoveId = null; touchMoveDX = 0; touchMoveDY = 0;
+          joyStick.style.transform = "translate(0px, 0px)";
+        }
+      }
+    }
+    joyBase.addEventListener("touchstart", joyStart, { passive: false });
+    joyBase.addEventListener("touchmove", joyMove, { passive: false });
+    joyBase.addEventListener("touchend", joyEnd, { passive: false });
+    joyBase.addEventListener("touchcancel", joyEnd, { passive: false });
+
+    // Arrastrar el dedo por el resto de la pantalla (fuera del joystick y los botones) gira la cámara
+    canvas.addEventListener("touchstart", (e) => {
+      if (state !== "playing" || controlScheme !== "mobile") return;
+      const t = e.changedTouches[0];
+      if (touchLookId !== null) return;
+      touchLookId = t.identifier;
+      touchLookLastX = t.clientX;
+    }, { passive: false });
+    canvas.addEventListener("touchmove", (e) => {
+      if (controlScheme !== "mobile") return;
+      for (const t of e.changedTouches) {
+        if (t.identifier === touchLookId) {
+          const dx = t.clientX - touchLookLastX;
+          touchLookLastX = t.clientX;
+          player.angle += dx * TOUCH_ROT_SENS;
+          updateDirVectors();
+          e.preventDefault();
+        }
+      }
+    }, { passive: false });
+    canvas.addEventListener("touchend", (e) => {
+      for (const t of e.changedTouches) if (t.identifier === touchLookId) touchLookId = null;
+    }, { passive: false });
+    canvas.addEventListener("touchcancel", (e) => {
+      for (const t of e.changedTouches) if (t.identifier === touchLookId) touchLookId = null;
+    }, { passive: false });
+
+    // Botones táctiles
+    const btnInteract = container.querySelector("#dw-touch-interact");
+    const btnShoot = container.querySelector("#dw-touch-shoot");
+    const btnW1 = container.querySelector("#dw-touch-w1");
+    const btnW2 = container.querySelector("#dw-touch-w2");
+    const tap = (el, fn) => el.addEventListener("touchstart", (e) => { e.preventDefault(); fn(); }, { passive: false });
+    tap(btnInteract, () => { if (state === "playing") tryInteract(); });
+    tap(btnShoot, () => { if (state === "playing") tryShoot(); });
+    tap(btnW1, () => { if (state === "playing") player.weapon = "pistol"; });
+    tap(btnW2, () => { if (state === "playing" && player.hasShotgun) player.weapon = "shotgun"; });
+  }
+
+  function applyTouchMovement() {
+    if (controlScheme !== "mobile" || touchMoveId === null) return { mx: 0, my: 0 };
+    // touchMoveDY negativo = joystick hacia arriba = adelante
+    const fwd = -touchMoveDY, strafe = touchMoveDX;
+    if (Math.abs(fwd) < 0.08 && Math.abs(strafe) < 0.08) return { mx: 0, my: 0 };
+    const rightX = -player.dirY, rightY = player.dirX;
+    return {
+      mx: player.dirX * fwd + rightX * strafe,
+      my: player.dirY * fwd + rightY * strafe,
+    };
+  }
+
+  function updateDoors(dt) {
+    for (const d of SECRET_DOORS) {
+      if (d.triggered && !d.opened) {
+        d.animT += dt;
+        if (d.animT >= DOOR_ANIM_TIME) { d.animT = DOOR_ANIM_TIME; d.opened = true; map[d.y][d.x] = 0; }
+      }
+    }
+    for (const d of DOORS) {
+      if (d.triggered && !d.opened) {
+        d.animT += dt;
+        if (d.animT >= DOOR_ANIM_TIME) { d.animT = DOOR_ANIM_TIME; d.opened = true; map[d.y][d.x] = 0; }
+      }
+    }
+  }
+
+  /* ---------------- Ciclo de vida del nivel ---------------- */
+
+  
+  function startLevel() {
+    selectedCharacter = pickedCharacter; // si se usó el Konami, vuelve el personaje elegido
+    elFaceImg.src = ASSET_PATHS[faceKey("healthy")];
+    buildLevel();
+    buildLevel();
+    buildEntities();
+    player.x = 6.5; player.y = 6.5; player.angle = 0;
+    updateDirVectors();
+    player.health = 100; player.armor = 0; player.ammo = 40;
+    player.hasShotgun = false; player.weapon = "pistol";
+    score = 0; kills = 0; totalRoundsFired = 0;
+    nearFinish = false;
+    faceOverrideTimer = 0;
+    weaponGrabTimer = 0;
+    elInteractHint.classList.add("dw-hidden");
+    levelStartTime = performance.now();
+    overlayMenu.classList.add("dw-hidden");
+    overlayEnd.classList.add("dw-hidden");
+    overlayLeaderboard.classList.add("dw-hidden");
+    state = "playing";
+    stopMenuAndVictoriaMusic();
+    stopDesesperado();
+    ensureMusicPlaying();
+    elTouchControls.classList.toggle("dw-hidden", controlScheme !== "mobile");
+    resetTouchState();
+    gpPrevButtons = [];
+  }
+
+  function damagePlayer(amount) {
+    const absorb = player.armor > 0 ? Math.min(player.armor, amount * 0.6) : 0;
+    player.armor -= absorb;
+    player.health -= (amount - absorb);
+    flashHit();
+    if (player.health <= 0) {
+      player.health = 0;
+      faceOverrideImgKey = "death";
+      faceOverrideTimer = 999;
+      state = "dead";
+      playSound("death");
+      setTimeout(() => showEndScreen(false), 1000); // dura lo que assets/sonidos/muerte.mp3 (~0.97s)
+    } else {
+      playDanoSlice();
+      faceOverrideImgKey = painAlternateToggle ? "pain2" : "pain1";
+      painAlternateToggle = !painAlternateToggle;
+      faceOverrideTimer = 0.35;
+    }
+  }
+  function flashHit() {
+    hitFlash.style.opacity = "0.45";
+    setTimeout(() => { hitFlash.style.opacity = "0"; }, 120);
+  }
+
+  function damageEnemy(en, dmg) {
+    en.hp -= dmg;
+    if (en.hp <= 0 && en.alive) {
+      en.alive = false;
+      kills++;
+      score += 10;
+    } else if (en.alive) {
+      en.hitTimer = 0.25;
+    }
+  }
+
+  function hasLineOfSight(x1, y1, x2, y2) {
+    const dist = Math.hypot(x2 - x1, y2 - y1);
+    const steps = Math.max(1, Math.ceil(dist / 0.2));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t;
+      if (!cellWalkable(Math.floor(x), Math.floor(y))) return false;
+    }
+    return true;
+  }
+
+  /* ---------------- Sonido ---------------- */
+      const SOUND_PATHS = {
+    pistol: "../assets/sonidos/pistolEffect.mp3",
+    shotgun: "../assets/sonidos/shotgunEffect.mp3",
+    item: "../assets/sonidos/objectEffect.mp3",
+    door: "../assets/sonidos/doorEffect.mp3",
+    soundtrack: "../assets/sonidos/soundtrack.mp3",
+    desesperado: "../assets/sonidos/desesperado.mp3",
+    cobra: "../assets/sonidos/cobra.mp3",
+    konami: "../assets/sonidos/konami.mp3",
+    death: "../assets/sonidos/muerte.mp3",
+    victoria: "../assets/sonidos/victoria.mp3",
+    menu: "../assets/sonidos/menu.mp3",
+    dano: "../assets/sonidos/dano.mp3",
+  };
+  /* ---------------- Canciones elegibles ----------------*/
+  const SONGS = [
+  { id: "soundtrack", name: "El soundtrack",             file: "../assets/sonidos/soundtrack.mp3" },
+  { id: "amar",       name: "El amar y el querer",       file: "../assets/sonidos/canciones/amar_y_el_querer.mp3" },
+  { id: "mienteme",   name: "Miénteme - Luis Miguel",    file: "../assets/sonidos/canciones/mienteme.mp3" },
+  { id: "peronista",  name: "La marcha peronista",       file: "../assets/sonidos/canciones/marcha_peronista.mp3" },
+  { id: "sanlorenzo", name: "La marcha de San Lorenzo",  file: "../assets/sonidos/canciones/san_lorenzo.mp3" },
+  { id: "keke",       name: "Yo Quiero Un Keke",                      file: "../assets/sonidos/canciones/keke.mp3" },
+  { id: "tonta",      name: "La Tonta",                     file: "../assets/sonidos/canciones/tonta.mp3" },
+  { id: "gold",       name: "Gold",                      file: "../assets/sonidos/canciones/gold.mp3" },
+  { id: "simedejas",  name: "Si me dejas ahora",               file: "../assets/sonidos/canciones/si_me_dejas.mp3" },
+];
+  let selectedSong = SONGS[0];
+  const SOUND_VOLUME = { pistol: 0.4, shotgun: 0.5, item: 1, door: 0.8 };
+  function playSound(key) {
+    const src = SOUND_PATHS[key];
+    if (!src) return;
+    try {
+      const a = new Audio(src);
+      a.volume = SOUND_VOLUME[key] !== undefined ? SOUND_VOLUME[key] : 0.6;
+      a.play().catch(() => { /* el navegador puede bloquear el audio hasta el primer gesto del usuario */ });
+    } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  }
+
+  let musicAudio = null;
+  function ensureMusicPlaying() {
+    try {
+      if (!musicAudio) {
+        musicAudio = new Audio(selectedSong.file);
+        musicAudio.loop = true;
+        musicAudio.volume = 0.12;
+        // Si el archivo de la canción todavía no existe, cae al soundtrack original
+        musicAudio.addEventListener("error", () => {
+          if (musicAudio && !musicAudio.src.endsWith(SOUND_PATHS.soundtrack)) {
+            musicAudio.src = SOUND_PATHS.soundtrack;
+            musicAudio.play().catch(() => {});
+          }
+        });
+      }
+      if (musicAudio.paused) musicAudio.play().catch(() => { /* se desbloquea con el primer click del usuario */ });
+    } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  }
+
+  let desesperadoAudio = null;
+  function switchToDesesperado() {
+    try {
+      if (musicAudio && !musicAudio.paused) musicAudio.pause();
+      if (!desesperadoAudio) {
+        desesperadoAudio = new Audio(SOUND_PATHS.desesperado);
+        desesperadoAudio.loop = true;
+        desesperadoAudio.volume = 0.3;
+      }
+      if (desesperadoAudio.paused) desesperadoAudio.play().catch(() => {});
+    } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  }
+  function stopDesesperado() {
+    if (desesperadoAudio && !desesperadoAudio.paused) {
+      desesperadoAudio.pause();
+      desesperadoAudio.currentTime = 0;
+    }
+  }
+
+  let cobraAudio = null;
+  function switchToCobra() {
+    try {
+      if (musicAudio && !musicAudio.paused) musicAudio.pause();
+      if (desesperadoAudio && !desesperadoAudio.paused) desesperadoAudio.pause();
+      if (!cobraAudio) {
+        cobraAudio = new Audio(SOUND_PATHS.cobra);
+        cobraAudio.loop = true;
+        cobraAudio.volume = 0.3;
+      }
+      if (cobraAudio.paused) cobraAudio.play().catch(() => {});
+    } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  }
+
+  // ---- Música de victoria y de menú (siempre suena una sola a la vez) ----
+  let victoriaAudio = null, menuAudio = null;
+  function stopAllMusic() {
+    [musicAudio, desesperadoAudio, cobraAudio, victoriaAudio, menuAudio].forEach((a) => {
+      if (!a) return;
+      a.pause();
+      try { a.currentTime = 0; } catch (e) { /* todavía sin cargar */ }
+    });
+  }
+  function playVictoriaMusic() {
+    try {
+      stopAllMusic();
+      if (!victoriaAudio) {
+        victoriaAudio = new Audio(SOUND_PATHS.victoria);
+        victoriaAudio.loop = true;
+        victoriaAudio.volume = 0.25;
+      }
+      victoriaAudio.play().catch(() => {});
+    } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  }
+  function playMenuMusic() {
+    try {
+      if (menuAudio && !menuAudio.paused) return; // ya está sonando, que no se reinicie
+      stopAllMusic();
+      if (!menuAudio) {
+        menuAudio = new Audio(SOUND_PATHS.menu);
+        menuAudio.loop = true;
+        menuAudio.volume = 0.1;
+      }
+      menuAudio.play().catch(() => {});
+    } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  }
+  function stopMenuAndVictoriaMusic() {
+    [menuAudio, victoriaAudio].forEach((a) => {
+      if (!a) return;
+      a.pause();
+      try { a.currentTime = 0; } catch (e) { /* todavía sin cargar */ }
+    });
+  }
+
+    // ---- Sonido de daño: ~1 segundo al azar de assets/sonidos/dano.mp3 ----
+  const DANO_SLICE = 1;                  // segundos que suena cada vez
+  const DANO_FALLBACK_DURATION = 35;     // por si el navegador todavía no leyó la duración real
+  const DANO_SILENCES = [[8.2, 9.3], [25.1, 25.4]]; // tramos (seg) donde el audio queda mudo: no se arranca ahí
+  let danoAudio = null, danoStopTimer = null;
+  try {
+    danoAudio = new Audio(SOUND_PATHS.dano);
+    danoAudio.preload = "auto"; // lo va cargando de entrada así el primer golpe suena a tiempo
+    danoAudio.volume = 0.7;
+  } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  function playDanoSlice() {
+    if (!danoAudio) return;
+    try {
+      const total = isFinite(danoAudio.duration) && danoAudio.duration > 0 ? danoAudio.duration : DANO_FALLBACK_DURATION;
+      const maxStart = Math.max(0, total - DANO_SLICE);
+      let start = Math.random() * maxStart;
+      for (let i = 0; i < 10 && DANO_SILENCES.some(([a, b]) => start >= a && start <= b); i++) {
+        start = Math.random() * maxStart; // cayó en un silencio: tira de nuevo
+      }
+      clearTimeout(danoStopTimer);
+      danoAudio.currentTime = start;
+      danoAudio.play().catch(() => {});
+      danoStopTimer = setTimeout(() => danoAudio.pause(), DANO_SLICE * 1000);
+    } catch (e) { /* audio no disponible, seguimos sin romper el juego */ }
+  }
+
+  function tryShoot() {
+    if (state !== "playing" || player.ammo <= 0) return;
+    const cost = player.weapon === "shotgun" ? 2 : 1;
+    player.ammo -= cost;
+    totalRoundsFired += cost;
+    muzzleFlashTimer = 0.14;
+    playSound(player.weapon === "shotgun" ? "shotgun" : "pistol");
+    const spread = player.weapon === "shotgun" ? 0.24 : 0.045;
+    const dmg = player.weapon === "shotgun" ? rand(30, 48) : rand(9, 17);
+    enemies.forEach((en) => {
+      if (!en.alive) return;
+      const dx = en.x - player.x, dy = en.y - player.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > WEAPON_RANGE) return;
+      let ang = Math.atan2(dy, dx) - player.angle;
+      ang = ((ang + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      if (Math.abs(ang) < spread && hasLineOfSight(player.x, player.y, en.x, en.y)) {
+        damageEnemy(en, dmg);
+      }
+    });
+  }
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  /* ---------------- Actualización por frame ---------------- */
+  function update(dt) {
+    walkCycle += dt * (isMoving ? 9 : 0);
+    if (muzzleFlashTimer > 0) muzzleFlashTimer = Math.max(0, muzzleFlashTimer - dt);
+    if (weaponGrabTimer > 0) weaponGrabTimer = Math.max(0, weaponGrabTimer - dt);
+    if (faceOverrideTimer > 0) faceOverrideTimer = Math.max(0, faceOverrideTimer - dt);
+
+    pollGamepad(dt);
+
+    if (keys["ArrowLeft"]) { player.angle -= ROT_SPEED * dt; updateDirVectors(); }
+    if (keys["ArrowRight"]) { player.angle += ROT_SPEED * dt; updateDirVectors(); }
+
+    let mx = 0, my = 0;
+    if (keys["KeyW"] || keys["ArrowUp"]) { mx += player.dirX; my += player.dirY; }
+    if (keys["KeyS"] || keys["ArrowDown"]) { mx -= player.dirX; my -= player.dirY; }
+    const rightX = -player.dirY, rightY = player.dirX;
+    if (keys["KeyD"]) { mx += rightX; my += rightY; }
+    if (keys["KeyA"]) { mx -= rightX; my -= rightY; }
+    mx += gpMove.mx; my += gpMove.my;
+    const touchM = applyTouchMovement();
+    mx += touchM.mx; my += touchM.my;
+    const mlen = Math.hypot(mx, my);
+    isMoving = mlen > 0.01;
+    if (isMoving) {
+      mx = (mx / mlen) * MOVE_SPEED * dt;
+      my = (my / mlen) * MOVE_SPEED * dt;
+      if (walkableWorld(player.x + mx, player.y, PLAYER_RADIUS)) player.x += mx;
+      if (walkableWorld(player.x, player.y + my, PLAYER_RADIUS)) player.y += my;
+    }
+
+    updateEnemies(dt);
+    updateItems();
+    updateDoors(dt);
+    checkNearFinish();
+  }
+
+  function updateEnemies(dt) {
+    enemies.forEach((en) => {
+      if (!en.alive) return;
+      if (en.hitTimer > 0) en.hitTimer = Math.max(0, en.hitTimer - dt);
+      if (en.attackTimer > 0) en.attackTimer = Math.max(0, en.attackTimer - dt);
+      en.attackCooldown = Math.max(0, en.attackCooldown - dt);
+      const dx = player.x - en.x, dy = player.y - en.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < en.sightRange && hasLineOfSight(en.x, en.y, player.x, player.y)) {
+        if (dist > en.attackRange) {
+          en.chasing = true;
+          en.walkClock += dt;
+          if (en.walkClock > 0.28) { en.walkClock = 0; en.walkToggle = !en.walkToggle; }
+          const nx = en.x + (dx / dist) * en.speed * dt;
+          const ny = en.y + (dy / dist) * en.speed * dt;
+          if (walkableWorld(nx, en.y, ENEMY_RADIUS)) en.x = nx;
+          if (walkableWorld(en.x, ny, ENEMY_RADIUS)) en.y = ny;
+        } else {
+          en.chasing = false;
+          if (en.attackCooldown <= 0) {
+            en.attackCooldown = en.attackInterval;
+            en.attackTimer = 0.35;
+            damagePlayer(en.dmg);
+          }
+        }
+      } else {
+        en.chasing = false;
+      }
+    });
+  }
+
+  function updateItems() {
+    items.forEach((it) => {
+      if (it.taken) return;
+      const dist = Math.hypot(it.x - player.x, it.y - player.y);
+      if (dist < PICKUP_RADIUS) {
+        it.taken = true;
+        playSound("item");
+        if (it.type === "health") { player.health = Math.min(200, player.health + it.amount); score += 25; }
+        else if (it.type === "armor") { player.armor = Math.min(200, player.armor + it.amount); score += 25; }
+        else if (it.type === "ammo") { player.ammo += it.amount; score += 25; }
+        else if (it.type === "secret") { score += 25; switchToDesesperado(); }
+        else if (it.type === "fabri") { score += 5000; switchToCobra(); }
+        else if (it.type === "shotgun") {
+          player.hasShotgun = true; player.weapon = "shotgun"; player.ammo += it.amount; score += 200;
+          weaponGrabTimer = 0.5;
+        }
+      }
+    });
+  }
+
+  function checkNearFinish() {
+    nearFinish = nearFinishSwitch(player.x, player.y);
+    elInteractHint.classList.toggle("dw-hidden", !nearFinish);
+  }
+
+  /* ---------------- Fin de nivel y puntaje ---------------- */
+  function showEndScreen(won) {
+    document.exitPointerLock && document.exitPointerLock();
+    const elapsedSec = (performance.now() - levelStartTime) / 1000;
+    const bulletPenalty = Math.floor(totalRoundsFired / 10) * 5;
+    const healthAdj = Math.round(won ? player.health - 100 : 0);
+    const armorAdj = Math.round(won ? player.armor : 0);
+    const timeBonus = won ? Math.max(0, Math.round(3000 - elapsedSec * 8)) : 0;
+    const completeBonus = won ? 1000 : 0;
+    let finalScore = score - bulletPenalty + completeBonus + healthAdj + armorAdj + timeBonus;
+    finalScore = Math.max(0, Math.round(finalScore));
+
+    container_lastFinalScore = finalScore;
+
+    document.getElementById("dw-end-title").textContent = won ? "NIVEL COMPLETADO" : "HAS MUERTO";
+    const rows = [["Enemigos + ítems + escopeta", score, null],
+      ["Penalización por balas disparadas", -bulletPenalty, "neg"]];
+    if (won) {
+      rows.push(
+        ["Bonus por completar el nivel", completeBonus, "pos"],
+        ["Ajuste por vida final (" + Math.round(player.health) + "/100)", healthAdj, healthAdj >= 0 ? "pos" : "neg"],
+        ["Ajuste por armadura final", armorAdj, "pos"],
+        ["Bonus por tiempo (" + elapsedSec.toFixed(1) + "s)", timeBonus, "pos"]
+      );
+    }
+    let html = "";
+    rows.forEach(([label, val, cls]) => {
+      const sign = val > 0 ? "+" : "";
+      html += `<div class="dw-row"><span>${label}</span><span class="${cls === "pos" ? "dw-pos" : cls === "neg" ? "dw-neg" : ""}">${sign}${val}</span></div>`;
+    });
+    html += `<div class="dw-row dw-total"><span>PUNTAJE FINAL</span><span>${finalScore}</span></div>`;
+    document.getElementById("dw-breakdown").innerHTML = html;
+
+    document.getElementById("dw-save-row").classList.toggle("dw-hidden", !won);
+    document.getElementById("dw-btn-retry").classList.toggle("dw-hidden", won);
+
+    overlayEnd.classList.remove("dw-hidden");
+    document.getElementById("dw-name-input").value = "";
+    elTouchControls.classList.add("dw-hidden");
+    resetTouchState();
+  }
+
+  let container_lastFinalScore = 0;
+
+  function onSaveScore() {
+    const nameInput = document.getElementById("dw-name-input");
+    let name = (nameInput.value || "").trim().toUpperCase().slice(0, 16);
+    if (!name) name = "DOOMGUY";
+    const lb = saveToLeaderboard(name, container_lastFinalScore);
+    overlayEnd.classList.add("dw-hidden");
+    showLeaderboard(name, lb);
+  }
+
+  function loadLeaderboard() {
+    try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; } catch (e) { return []; }
+  }
+  function saveToLeaderboard(name, scoreVal) {
+    let lb = loadLeaderboard();
+    const idx = lb.findIndex((e) => e.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) { if (scoreVal > lb[idx].score) lb[idx].score = scoreVal; }
+    else lb.push({ name, score: scoreVal });
+    lb.sort((a, b) => b.score - a.score);
+    lb = lb.slice(0, 50);
+    try { localStorage.setItem(LB_KEY, JSON.stringify(lb)); } catch (e) { /* almacenamiento no disponible */ }
+    return lb;
+  }
+  function showLeaderboard(highlightName, lbData) {
+    const lb = lbData || loadLeaderboard();
+    const body = document.getElementById("dw-lb-body");
+    body.innerHTML = lb.length
+      ? lb.map((e, i) => `<tr class="${highlightName && e.name.toLowerCase() === highlightName.toLowerCase() ? "dw-you" : ""}"><td>${i + 1}</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td></tr>`).join("")
+      : `<tr><td colspan="3">Todavía no hay puntajes guardados.</td></tr>`;
+    overlayMenu.classList.add("dw-hidden");
+    overlayEnd.classList.add("dw-hidden");
+    overlayLeaderboard.classList.remove("dw-hidden");
+    state = "menu";
+  }
+  function escapeHtml(s) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+  /* ---------------- Renderizado (raycasting) ---------------- */
+  function render() {
+    const imgData = ctx.getImageData(0, 0, W, H);
+    castFloorCeiling(imgData);
+    castWalls(imgData);
+    ctx.putImageData(imgData, 0, 0);
+
+    renderSprites();
+    renderWeapon();
+  }
+
+  function castFloorCeiling(imgData) {
+    const data = imgData.data;
+    const floorTex = textures.floor, ceilTex = textures.techo;
+    if (!floorTex || !ceilTex) {
+      for (let y = 0; y < H; y++) {
+        const c = y < H / 2 ? 42 : 36;
+        for (let x = 0; x < W; x++) {
+          const idx = (y * W + x) * 4;
+          data[idx] = c; data[idx + 1] = c; data[idx + 2] = c; data[idx + 3] = 255;
+        }
+      }
+      return;
+    }
+    const rayDirX0 = player.dirX - player.planeX, rayDirY0 = player.dirY - player.planeY;
+    const rayDirX1 = player.dirX + player.planeX, rayDirY1 = player.dirY + player.planeY;
+    const halfH = H / 2;
+    for (let y = Math.floor(halfH) + 1; y < H; y++) {
+      const p = y - halfH;
+      const rowDistance = halfH / p;
+      const floorStepX = (rowDistance * (rayDirX1 - rayDirX0)) / W;
+      const floorStepY = (rowDistance * (rayDirY1 - rayDirY0)) / W;
+      let floorX = player.x + rowDistance * rayDirX0;
+      let floorY = player.y + rowDistance * rayDirY0;
+      const shade = Math.max(0.3, 1 - rowDistance / 18);
+      const yMirror = H - 1 - y;
+      const rowIdxFloor = y * W;
+      const rowIdxCeil = yMirror * W;
+      for (let x = 0; x < W; x++) {
+        const cellX = Math.floor(floorX), cellY = Math.floor(floorY);
+        const fracX = floorX - cellX, fracY = floorY - cellY;
+        floorX += floorStepX; floorY += floorStepY;
+
+        let tx = Math.floor(fracX * floorTex.width) % floorTex.width; if (tx < 0) tx += floorTex.width;
+        let ty = Math.floor(fracY * floorTex.height) % floorTex.height; if (ty < 0) ty += floorTex.height;
+        const fIdx = (ty * floorTex.width + tx) * 4;
+        const pIdx = (rowIdxFloor + x) * 4;
+        data[pIdx] = floorTex.data[fIdx] * shade;
+        data[pIdx + 1] = floorTex.data[fIdx + 1] * shade;
+        data[pIdx + 2] = floorTex.data[fIdx + 2] * shade;
+        data[pIdx + 3] = 255;
+
+        let txc = Math.floor(fracX * ceilTex.width) % ceilTex.width; if (txc < 0) txc += ceilTex.width;
+        let tyc = Math.floor(fracY * ceilTex.height) % ceilTex.height; if (tyc < 0) tyc += ceilTex.height;
+        const cIdx = (tyc * ceilTex.width + txc) * 4;
+        const qIdx = (rowIdxCeil + x) * 4;
+        data[qIdx] = ceilTex.data[cIdx] * shade;
+        data[qIdx + 1] = ceilTex.data[cIdx + 1] * shade;
+        data[qIdx + 2] = ceilTex.data[cIdx + 2] * shade;
+        data[qIdx + 3] = 255;
+      }
+    }
+  }
+
+  function castWalls(imgData) {
+    const data = imgData.data;
+    for (let x = 0; x < W; x++) {
+      const cameraX = (2 * x) / W - 1;
+      const rayDirX = player.dirX + player.planeX * cameraX;
+      const rayDirY = player.dirY + player.planeY * cameraX;
+      let mapX = Math.floor(player.x), mapY = Math.floor(player.y);
+      const deltaDistX = rayDirX === 0 ? 1e30 : Math.abs(1 / rayDirX);
+      const deltaDistY = rayDirY === 0 ? 1e30 : Math.abs(1 / rayDirY);
+      let stepX, stepY, sideDistX, sideDistY;
+      if (rayDirX < 0) { stepX = -1; sideDistX = (player.x - mapX) * deltaDistX; }
+      else { stepX = 1; sideDistX = (mapX + 1 - player.x) * deltaDistX; }
+      if (rayDirY < 0) { stepY = -1; sideDistY = (player.y - mapY) * deltaDistY; }
+      else { stepY = 1; sideDistY = (mapY + 1 - player.y) * deltaDistY; }
+
+      let hit = 0, side = 0, wallType = 1, safety = 0;
+      while (hit === 0 && safety < 200) {
+        safety++;
+        if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+        else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+        if (mapX < 0 || mapX >= MAP_W || mapY < 0 || mapY >= MAP_H) { hit = 1; wallType = 1; break; }
+        if (map[mapY][mapX] > 0) { hit = 1; wallType = map[mapY][mapX]; }
+      }
+      const perpDist = Math.max(0.0001, side === 0 ? sideDistX - deltaDistX : sideDistY - deltaDistY);
+      zBuffer[x] = perpDist;
+      const lineHeight = Math.max(1, Math.floor(H / perpDist));
+      let drawStart = Math.floor(-lineHeight / 2 + H / 2);
+      let drawEnd = Math.floor(lineHeight / 2 + H / 2);
+      const clipStart = Math.max(0, drawStart);
+      const clipEnd = Math.min(H - 1, drawEnd);
+
+      const tex = (wallType === 5 && textures.secret_wall) ? textures.secret_wall
+        : (wallType === 6 && textures.button_wall) ? textures.button_wall
+        : (wallType === 7 && textures.door) ? textures.door
+        : textures.wall;
+
+      // Si la celda es una puerta (secreta o normal) que se está abriendo, calculamos
+      // cuánto se deslizó hacia arriba para desplazar el sampleo de la textura.
+      let doorProgress = 0;
+      if (wallType === 5) {
+        const dObj = SECRET_DOORS.find((dd) => dd.x === mapX && dd.y === mapY);
+        if (dObj && dObj.triggered && !dObj.opened) doorProgress = Math.min(1, dObj.animT / DOOR_ANIM_TIME);
+      } else if (wallType === 7) {
+        const dObj = DOORS.find((dd) => dd.x === mapX && dd.y === mapY);
+        if (dObj && dObj.triggered && !dObj.opened) doorProgress = Math.min(1, dObj.animT / DOOR_ANIM_TIME);
+      }
+      if (!tex) {
+        const shade = Math.max(0.25, 1 - perpDist / 16);
+        const c = 100 * shade;
+        for (let y = clipStart; y <= clipEnd; y++) {
+          const idx = (y * W + x) * 4;
+          data[idx] = c; data[idx + 1] = c; data[idx + 2] = c; data[idx + 3] = 255;
+        }
+        continue;
+      }
+
+      let wallX = side === 0 ? player.y + perpDist * rayDirY : player.x + perpDist * rayDirX;
+      wallX -= Math.floor(wallX);
+      let texX = Math.floor(wallX * tex.width);
+
+      if (side === 0 && rayDirX < 0) texX = tex.width - texX - 1;
+      if (side === 1 && rayDirY > 0) texX = tex.width - texX - 1;
+      texX = ((texX % tex.width) + tex.width) % tex.width;
+
+      const shade = Math.max(0.3, 1 - perpDist / 16) * (side === 1 ? 0.7 : 1);
+      for (let y = clipStart; y <= clipEnd; y++) {
+        const d = y * 256 - H * 128 + lineHeight * 128;
+        let texY = Math.floor((d * tex.height) / lineHeight / 256);
+        if (doorProgress > 0) texY += Math.floor(doorProgress * tex.height);
+        texY = ((texY % tex.height) + tex.height) % tex.height;
+        const tIdx = (texY * tex.width + texX) * 4;
+        const idx = (y * W + x) * 4;
+        data[idx] = tex.data[tIdx] * shade;
+        data[idx + 1] = tex.data[tIdx + 1] * shade;
+        data[idx + 2] = tex.data[tIdx + 2] * shade;
+        data[idx + 3] = 255;
+      }
+    }
+  }
+
+  function getEnemyAssetKey(en) {
+    const isImp = en.kind === "imp";
+    if (en.hitTimer > 0) return isImp ? "imp_hit" : "zombi_hit";
+    if (en.attackTimer > 0) return isImp ? "imp_attack" : "zombi_attack";
+    if (en.chasing) return isImp ? "imp_walk" : (en.walkToggle ? "zombi_walk_derecha" : "zombi_walk_izquierda");
+    return isImp ? "imp_stand" : "zombi_walk_stand";
+  }
+
+  function renderSprites() {
+    const drawables = [];
+    enemies.forEach((e) => {
+      if (e.alive) drawables.push({ x: e.x, y: e.y, img: assets[getEnemyAssetKey(e)], scale: 1, vOffset: 0, fallback: e.kind === "imp" ? "#8f371a" : "#4a5a2f" });
+    });
+    items.forEach((it) => {
+      if (!it.taken) drawables.push({ x: it.x, y: it.y, img: assets[it.type === "secret" ? "secret_item" : it.type], scale: it.type === "secret" ? 0.4 : 0.5, vOffset: 0.28, fallback: "#d4b23c" });
+    });
+    drawables.forEach((o) => { o._d = (player.x - o.x) ** 2 + (player.y - o.y) ** 2; });
+    drawables.sort((a, b) => b._d - a._d);
+
+    const invDet = 1 / (player.planeX * player.dirY - player.dirX * player.planeY);
+    drawables.forEach((sp) => {
+      const spriteX = sp.x - player.x, spriteY = sp.y - player.y;
+      const transformX = invDet * (player.dirY * spriteX - player.dirX * spriteY);
+      const transformY = invDet * (-player.planeY * spriteX + player.planeX * spriteY);
+      if (transformY <= 0.2) return;
+      const spriteScreenX = Math.floor((W / 2) * (1 + transformX / transformY));
+      //femboys
+      const spriteHeight = Math.abs(Math.floor((H / transformY) * sp.scale));
+      const spriteWidth = spriteHeight;
+      if (spriteHeight <= 0 || spriteHeight > 3000) return;
+      const drawStartY = Math.floor(-spriteHeight / 2 + H / 2 + sp.vOffset * (H / transformY));
+      const drawStartX = Math.floor(spriteScreenX - spriteWidth / 2);
+
+      const sampleCols = [drawStartX + spriteWidth * 0.2, spriteScreenX, drawStartX + spriteWidth * 0.8];
+      const visible = sampleCols.some((cx) => {
+        const ci = Math.floor(cx);
+        return ci >= 0 && ci < W && transformY < zBuffer[ci];
+      });
+      if (!visible) return;
+      drawImageSafe(sp.img, drawStartX, drawStartY, spriteWidth, spriteHeight, sp.fallback);
+    });
+  }
+
+  function currentWeaponAssetKey() {
+    if (player.weapon === "shotgun") {
+      if (weaponGrabTimer > 0) return "shotgun_grap";
+      if (muzzleFlashTimer > 0) return "shotgun_shot";
+      return "shotgun_hand";
+    }
+    if (muzzleFlashTimer > 0) return "pistol_shot";
+    return "pistol";
+  }
+
+  const HUD_HEIGHT_RATIO = 0.15; // debe coincidir con la altura del #dw-hud en el CSS
+  function renderWeapon() {
+    const bobX = isMoving ? Math.sin(walkCycle) * 10 : 0;
+    const bobY = isMoving ? Math.abs(Math.sin(walkCycle)) * 12 : 0;
+    const recoil = muzzleFlashTimer > 0 ? 16 : 0;
+    const img = assets[currentWeaponAssetKey()];
+    const w = W * 0.4, h = w * 0.64;
+    const x = W / 2 - w / 2 + bobX;
+    const hudTop = H * (1 - HUD_HEIGHT_RATIO);
+    const y = hudTop - h * 0.6 + bobY - recoil;
+    drawImageSafe(img, x, y, w, h, "#3a3a3a");
+  }
+
+  //maxi silla gaymer//
+
+  /* ---------------- HUD ---------------- */
+  function updateHUD() {
+    elHealth.textContent = Math.max(0, Math.round(player.health));
+    elHealth.classList.toggle("dw-good", player.health > 100);
+    elArmor.textContent = Math.round(player.armor);
+    elAmmo.textContent = player.ammo;
+    elScoreLive.textContent = score;
+    elWeaponIcon.src = ASSET_PATHS[player.weapon === "shotgun" ? "shotgun_hand" : "pistol"];
+    const faceKey = currentFaceKey();
+    if (faceKey) elFaceImg.src = ASSET_PATHS[faceKey];
+  }
+
+  /* ---------------- Bucle principal ---------------- */
+  let lastTime = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000 || 0);
+    lastTime = now;
+    try {
+      pollGamepadMenu();
+      if (state === "playing") {
+        update(dt);
+        render();
+        updateHUD();
+      }
+    } catch (err) {
+      console.error("[DOOM WEB] Error en el loop principal:", err);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------------- Arranque ---------------- */
+  function init() {
+    const container = document.getElementById("doom-web-container") || document.body;
+    loadAssets(() => {
+      buildDOM(container);
+      requestAnimationFrame(loop);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();

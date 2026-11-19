@@ -1,0 +1,66 @@
+/* ============================================================
+   ESTILOS ESPECÍFICOS - Página Index
+   ============================================================ */
+
+main {
+    background-image: url('../img/woom.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    min-height: calc(100vh - 100px - 60px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2%;
+}
+
+.boton {
+    text-align: center;
+}
+
+#boton {
+    border-radius: 10px;
+    padding: 15px 40px;
+    background-color: #8b0000;
+    border: 2px solid #ff3333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#boton:hover {
+    background-color: #ff3333;
+    transform: scale(1.05);
+}
+
+#boton2 {
+    text-decoration: none;
+    font-size: 32px;
+    color: #fff;
+    font-family: 'AmazDooM', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    main {
+        background-attachment: scroll;
+        min-height: 70vh;
+        padding: 20px 4%;
+    }
+    #boton {
+        width: 100%;
+        max-width: 380px;
+        padding: 14px 24px;
+    }
+    #boton2 {
+        display: block;
+        font-size: 22px;
+        letter-spacing: 1px;
+    }
+}
+
+@media (max-width: 420px) {
+    #boton2 { font-size: 18px; }
+}

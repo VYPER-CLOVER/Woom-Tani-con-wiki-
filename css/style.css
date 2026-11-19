@@ -1,0 +1,206 @@
+/* ============================================================
+   ESTILOS GENERALES - Todas las páginas
+   ============================================================ */
+
+/* Fuentes personalizadas */
+/* Fuentes personalizadas */
+@font-face {
+    font-family: 'AmazDooM';
+    src: url('../assets/Fonts/AmazDooMLeft.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Doomed';
+    src: url('../assets/Fonts/doomed-regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* Reset y base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Doomed', 'AmazDooM', sans-serif;
+    background-color: #0a0a0a;
+    color: #cccccc;
+    min-height: 100vh;
+}
+
+/* Header */
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1% 2%;
+    height: 100px;
+    background-color: #1a1a1a;
+    border-bottom: 3px solid #8b0000;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    border-radius: 50%;
+    height: 70px;
+    width: 70px;
+    object-fit: cover;
+}
+
+#titulo {
+    color: #ff3333;
+    font-size: 42px;
+    text-align: center;
+    text-shadow: 2px 2px 4px #000;
+    letter-spacing: 2px;
+    font-family: 'AmazDooM', sans-serif;
+}
+
+.menu_arriba {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.menu_arriba a {
+    text-decoration: none;
+    font-size: 18px;
+    padding: 8px 16px;
+    color: #cccccc;
+    border: 1px solid #444;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+.menu_arriba a:hover {
+    color: #fff;
+    background-color: #8b0000;
+    border-color: #8b0000;
+}
+
+/* Footer */
+footer {
+    background-color: #1a1a1a;
+    padding: 15px 2%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 3px solid #8b0000;
+}
+
+.datos-contacto {
+    font-size: 14px;
+    color: #999;
+}
+
+.links-legales a {
+    color: #999;
+    text-decoration: none;
+    margin: 0 5px;
+    transition: color 0.3s ease;
+    display: flex;
+    margin-top: 5px;
+}
+
+.links-legales a:hover {
+    color: #ff3333;
+}
+
+.copyright {
+    font-size: 12px;
+    opacity: 0.6;
+    margin-top: 5px;
+}
+
+.menu_abajo {
+    display: flex;
+    gap: 15px;
+}
+
+.menu_abajo a {
+    text-decoration: none;
+    color: #999;
+    font-size: 14px;
+    transition: color 0.3s ease;
+}
+
+.menu_abajo a:hover {
+    color: #ff3333;
+}
+
+/* ============================================================
+   RESPONSIVE - Todas las páginas
+   ============================================================ */
+
+img { max-width: 100%; }
+
+header {
+    height: auto;
+    min-height: 100px;
+    gap: 15px;
+}
+
+.logo { flex-shrink: 0; }
+
+#titulo {
+    flex: 1;
+    min-width: 0;
+    padding: 0 10px;
+    font-size: clamp(18px, 2.7vw, 42px);
+}
+
+/* Laptops chicas */
+@media (max-width: 1100px) {
+    .menu_arriba { gap: 12px; }
+    .menu_arriba a { font-size: 16px; padding: 7px 12px; }
+}
+
+/* Celulares y tablets */
+@media (max-width: 768px) {
+    header {
+        flex-wrap: wrap;
+        padding: 10px 4%;
+        gap: 8px;
+    }
+    .logo-container { order: 1; }
+    .menu_arriba {
+        order: 2;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    #titulo {
+        order: 3;
+        flex: 1 1 100%;
+        padding: 0;
+        font-size: 22px;
+        letter-spacing: 1px;
+    }
+    .logo { height: 48px; width: 48px; }
+    .menu_arriba a { font-size: 14px; padding: 8px 12px; }
+
+    footer {
+        flex-direction: column;
+        gap: 14px;
+        padding: 18px 4%;
+        text-align: center;
+    }
+    .links-legales a { justify-content: center; margin-top: 8px; padding: 4px 0; }
+    .menu_abajo { gap: 20px; justify-content: center; }
+    .menu_abajo a { font-size: 15px; padding: 4px 0; }
+}
+
+/* Celulares chicos */
+@media (max-width: 420px) {
+    #titulo { font-size: 18px; }
+    .menu_arriba { gap: 6px; }
+    .menu_arriba a { font-size: 13px; padding: 7px 9px; }
+}

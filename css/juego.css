@@ -1,0 +1,422 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Share+Tech+Mono&display=swap');
+
+@font-face {
+  font-family: 'AmazDooMLeft';
+  src: url('../assets/Fonts/AmazDooMLeft.ttf') format('truetype');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DoomedRegular';
+  src: url('../assets/Fonts/doomed-regular.ttf') format('truetype');
+  font-display: swap;
+}
+
+#dw-root, #dw-root * {
+  font-family: 'DoomedRegular', 'Share Tech Mono', monospace;
+}
+#dw-root .dw-title {
+  font-family: 'AmazDooMLeft', 'Oswald', sans-serif;
+}
+#dw-root {
+  --dw-bg: #0c0a08;
+  --dw-panel: #17110c;
+  --dw-rust: #b33a1a;
+  --dw-rust-dim: #6b230d;
+  --dw-bone: #cbb994;
+  --dw-blood: #7a0e0e;
+  --dw-steel: #4a4a4a;
+  --dw-good: #7a8f3a;
+  font-family: 'Oswald', sans-serif;
+  color: var(--dw-bone);
+  position: relative;
+  width: min(calc(100vw - 4cm), calc((100vh - 4cm) * 1.6));
+  aspect-ratio: 16 / 10;
+  margin: 0 auto;
+  background: #000;
+  overflow: hidden;
+  border: 3px solid var(--dw-rust-dim);
+  box-shadow: 0 0 0 1px #000, 0 10px 40px rgba(0,0,0,.6);
+  user-select: none;
+}
+
+/* En pantallas chicas (celulares/tablets) el margen fijo de 4cm deja muy
+   poco espacio real, así que ahí usamos un margen mínimo proporcional. */
+@media (max-width: 900px), (pointer: coarse) {
+  #dw-root {
+    width: min(98vw, calc(98vh * 1.6));
+  }
+}
+
+#dw-root * { box-sizing: border-box; }
+
+#dw-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+  image-rendering: pixelated;
+}
+
+/* ---------- HUD (basado en assets/jugador/hud.jpeg) ---------- */
+#dw-hud {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 15%;
+  min-height: 74px;
+  background: url('../assets/jugador/hud.jpeg') center / 100% 100% no-repeat;
+  z-index: 5;
+  font-family: 'Share Tech Mono', monospace;
+  display: flex;
+  align-items: center;
+  padding: 0 3.5%;
+  box-sizing: border-box;
+}
+
+/* Los dos lados crecen parejo, así la cara queda centrada sola sin coordenadas fijas */
+.dw-hud-side { flex: 1 1 0; display: flex; align-items: center; gap: 7%; }
+.dw-hud-left { justify-content: flex-start; }
+.dw-hud-right { justify-content: flex-end; }
+
+.dw-hud-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+
+.dw-hud-icon {
+  width: clamp(28px, 5.4vh, 64px);
+  height: clamp(28px, 5.4vh, 64px);
+  object-fit: contain;
+  filter: drop-shadow(0 0 2px #000);
+}
+.dw-hud-weapon-icon { width: clamp(34px, 6.6vh, 78px); height: clamp(34px, 6.6vh, 78px); }
+
+.dw-hud-num {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--dw-rust);
+  font-size: clamp(14px, 3.4vh, 32px);
+  line-height: 1;
+}
+.dw-hud-num.dw-good { color: var(--dw-good); }
+
+.dw-hud-score-label {
+  font-size: clamp(8px, 1.6vh, 15px);
+  letter-spacing: 1.5px;
+  color: var(--dw-bone);
+}
+
+/* Cara del jugador: se centra sola por flexbox, solo hace falta que coincida
+   en ancho/alto con el recuadro rojo del fondo */
+.dw-hud-face {
+  flex: 0 0 auto;
+  width: 7.6%;
+  height: 78%;
+  object-fit: cover;
+  border-radius: 2px;
+}
+
+/* ---------- Crosshair & flash ---------- */
+#dw-crosshair {
+  position: absolute; top: 50%; left: 50%;
+  width: 18px; height: 18px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 4;
+}
+#dw-crosshair::before, #dw-crosshair::after {
+  content: ""; position: absolute; background: var(--dw-bone); opacity: .8;
+}
+#dw-crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+#dw-crosshair::after { top: 8px; left: 0; height: 2px; width: 18px; }
+
+#dw-hit-flash {
+  position: absolute; inset: 0; background: #b33a1a;
+  opacity: 0; pointer-events: none; z-index: 6;
+  transition: opacity 120ms ease-out;
+}
+
+/* ---------- Overlays (menu / end / leaderboard) ---------- */
+.dw-overlay {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, #1a1109ee 0%, #0a0705f5 70%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; text-align: center; padding: 5%;
+  z-index: 20;
+  overflow-y: auto;
+}
+.dw-hidden { display: none !important; }
+
+/* Fondo temático: pantalla principal usa woom.jpeg, pantalla de nivel completado usa mome.png */
+#dw-overlay-menu {
+  background:
+    linear-gradient(#0a0705d9, #0a0705f0),
+    url('../assets/escenario/woom.jpeg') center / cover no-repeat;
+}
+#dw-overlay-end {
+  background:
+    linear-gradient(#0a0705d9, #0a0705f0),
+    url('../assets/escenario/mome.png') center / cover no-repeat;
+}
+
+.dw-title {
+  font-size: clamp(30px, 6vw, 56px);
+  color: var(--dw-rust);
+  letter-spacing: 3px;
+  font-weight: 700;
+  text-shadow: 0 0 18px #b33a1a55, 3px 3px 0 #000;
+  margin: 0;
+}
+.dw-subtitle { font-size: clamp(12px, 1.6vw, 16px); color: var(--dw-bone); opacity: .85; max-width: 480px; line-height: 1.5; }
+
+/* Pantalla principal: letras más grandes para que se lean bien */
+#dw-overlay-menu .dw-title { font-size: clamp(42px, 8vw, 78px); }
+#dw-overlay-menu .dw-subtitle { font-size: clamp(16px, 2.2vw, 21px); max-width: 680px; line-height: 1.6; }
+#dw-overlay-menu .dw-btn { font-size: clamp(16px, 2vw, 22px); padding: 16px 38px; }
+#dw-menu-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+  max-width: 560px;
+}
+#dw-menu-links .dw-btn {
+  width: 100%;
+  padding: 14px 10px;
+  font-size: clamp(13px, 1.5vw, 18px);
+}
+
+.dw-btn {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: #10100c;
+  background: var(--dw-rust);
+  border: none;
+  padding: 12px 30px;
+  cursor: pointer;
+  clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%);
+  transition: transform 80ms ease, background 120ms ease;
+}
+.dw-btn:hover { background: #d0491f; transform: translateY(-2px); }
+.dw-btn:active { transform: translateY(0); }
+.dw-btn.dw-secondary { background: var(--dw-steel); color: var(--dw-bone); }
+
+#dw-name-input {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 18px;
+  background: #100c08;
+  border: 2px solid var(--dw-rust-dim);
+  color: var(--dw-bone);
+  padding: 10px 14px;
+  text-align: center;
+  letter-spacing: 2px;
+  width: 240px;
+  text-transform: uppercase;
+}
+#dw-name-input:focus { outline: none; border-color: var(--dw-rust); }
+
+.dw-score-breakdown {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  background: #100c08cc;
+  border: 1px solid var(--dw-rust-dim);
+  padding: 14px 22px;
+  min-width: 260px;
+  text-align: left;
+  line-height: 1.9;
+}
+.dw-score-breakdown .dw-row { display: flex; justify-content: space-between; gap: 24px; }
+.dw-score-breakdown .dw-total { border-top: 1px solid var(--dw-rust-dim); margin-top: 6px; padding-top: 6px; color: var(--dw-rust); font-weight: bold; }
+.dw-neg { color: #b33a1a; }
+.dw-pos { color: var(--dw-good); }
+
+#dw-leaderboard-table {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  border-collapse: collapse;
+  min-width: 300px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: block;
+}
+#dw-leaderboard-table th, #dw-leaderboard-table td {
+  padding: 6px 16px;
+  border-bottom: 1px solid #2a1f14;
+}
+#dw-leaderboard-table th { color: var(--dw-rust); text-align: left; font-family: 'Oswald', sans-serif; letter-spacing: 1px; }
+#dw-leaderboard-table tr.dw-you { color: var(--dw-good); font-weight: bold; }
+
+#dw-crosshair, #dw-hit-flash, #dw-hud { pointer-events: none; }
+#dw-hud button, #dw-hud a { pointer-events: auto; }
+
+.dw-pointerlock-hint {
+  font-size: 12px; opacity: .6; letter-spacing: .5px;
+}
+
+@media (max-width: 520px) {
+  .dw-hud-num { font-size: 10px; }
+}
+
+#dw-interact-hint {
+  position: absolute;
+  left: 50%; top: 58%;
+  transform: translateX(-50%);
+  z-index: 8;
+  pointer-events: none;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: .5px;
+  font-size: clamp(13px, 2vw, 16px);
+  color: var(--dw-bone);
+  background: #0a0a0bcc;
+  border: 1px solid #2fbf3a88;
+  padding: 6px 14px;
+  border-radius: 4px;
+  animation: dw-hint-pulse 1.1s ease-in-out infinite;
+}
+@keyframes dw-hint-pulse {
+  0%, 100% { opacity: .85; }
+  50% { opacity: 1; }
+}
+/* ---------- Pantalla de selección de forma de jugar ---------- */
+#dw-control-options {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 780px;
+}
+.dw-control-opt {
+  font-family: 'Oswald', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 210px;
+  padding: 22px 16px;
+  background: #100c08cc;
+  border: 2px solid var(--dw-rust-dim);
+  color: var(--dw-bone);
+  cursor: pointer;
+  transition: transform 100ms ease, border-color 120ms ease, background 120ms ease;
+}
+.dw-control-opt:hover {
+  border-color: var(--dw-rust);
+  background: #1a130ce6;
+  transform: translateY(-3px);
+}
+.dw-control-opt-title {
+  font-size: clamp(16px, 2vw, 20px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--dw-rust);
+}
+.dw-control-opt-desc {
+  font-size: clamp(11px, 1.3vw, 13px);
+  opacity: .8;
+  line-height: 1.4;
+}
+
+/* ---------- Controles táctiles (modo celular) ---------- */
+#dw-touch-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+#dw-touch-controls.dw-hidden { display: none; }
+
+#dw-joy-base {
+  position: absolute;
+  left: 5%;
+  bottom: 19%;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: #0a0a0b66;
+  border: 2px solid #cbb99455;
+  pointer-events: auto;
+  touch-action: none;
+}
+#dw-joy-stick {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 50px; height: 50px;
+  margin-left: -25px; margin-top: -25px;
+  border-radius: 50%;
+  background: #b33a1acc;
+  border: 2px solid #cbb994aa;
+  pointer-events: none;
+}
+
+#dw-touch-buttons {
+  position: absolute;
+  right: 4%;
+  bottom: 17%;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  pointer-events: none;
+}
+#dw-touch-weapons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dw-touch-btn {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--dw-bone);
+  background: #100c08b3;
+  border: 2px solid var(--dw-rust-dim);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+}
+.dw-touch-btn-round { width: 52px; height: 52px; border-radius: 50%; font-size: 16px; }
+.dw-touch-btn-fire {
+  width: 78px; height: 78px; border-radius: 50%;
+  font-size: 13px;
+  background: #b33a1ab3;
+  border-color: var(--dw-rust);
+}
+.dw-touch-btn-small { width: 38px; height: 38px; border-radius: 50%; font-size: 13px; }
+
+@media (max-width: 520px) {
+  .dw-control-opt { width: 44%; padding: 14px 10px; }
+}
+
+/* ---------- Aviso para girar el celular (solo vertical en pantallas chicas) ---------- */
+#dw-rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0a0705;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 10%;
+  font-family: 'Oswald', sans-serif;
+  color: var(--dw-bone, #cbb994);
+}
+#dw-rotate-icon {
+  font-size: 54px;
+  animation: dw-rotate-spin 1.6s ease-in-out infinite;
+}
+#dw-rotate-overlay p {
+  font-size: clamp(14px, 4.5vw, 20px);
+  max-width: 320px;
+  line-height: 1.5;
+  margin: 0;
+}
+@keyframes dw-rotate-spin {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+@media (orientation: portrait) and (max-width: 900px) {
+  #dw-rotate-overlay { display: flex; }
+}
